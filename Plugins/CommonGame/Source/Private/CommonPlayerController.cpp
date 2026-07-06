@@ -1,0 +1,73 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+// DragonOath 中文注释：Lyra 通用游戏 UI/玩家框架，包含 UI 层级管理、弹窗、LocalPlayer 和 PlayerController 基础设施。
+
+#include "CommonPlayerController.h"
+
+#include "CommonLocalPlayer.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(CommonPlayerController)
+
+class APawn;
+
+ACommonPlayerController::ACommonPlayerController(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
+void ACommonPlayerController::ReceivedPlayer()
+{
+	Super::ReceivedPlayer();
+
+	if (UCommonLocalPlayer* LocalPlayer = Cast<UCommonLocalPlayer>(Player))
+	{
+		LocalPlayer->OnPlayerControllerSet.Broadcast(LocalPlayer, this);
+
+		if (PlayerState)
+		{
+			LocalPlayer->OnPlayerStateSet.Broadcast(LocalPlayer, PlayerState);
+		}
+	}
+}
+
+void ACommonPlayerController::SetPawn(APawn* InPawn)
+{
+	Super::SetPawn(InPawn);
+
+	if (UCommonLocalPlayer* LocalPlayer = Cast<UCommonLocalPlayer>(Player))
+	{
+		LocalPlayer->OnPlayerPawnSet.Broadcast(LocalPlayer, InPawn);
+	}
+}
+
+void ACommonPlayerController::OnPossess(APawn* APawn)
+{
+	Super::OnPossess(APawn);
+
+	if (UCommonLocalPlayer* LocalPlayer = Cast<UCommonLocalPlayer>(Player))
+	{
+		LocalPlayer->OnPlayerPawnSet.Broadcast(LocalPlayer, APawn);
+	}
+}
+
+void ACommonPlayerController::OnUnPossess()
+{
+	Super::OnUnPossess();
+
+	if (UCommonLocalPlayer* LocalPlayer = Cast<UCommonLocalPlayer>(Player))
+	{
+		LocalPlayer->OnPlayerPawnSet.Broadcast(LocalPlayer, nullptr);
+	}
+}
+
+void ACommonPlayerController::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	if (PlayerState)
+	{
+		if (UCommonLocalPlayer* LocalPlayer = Cast<UCommonLocalPlayer>(Player))
+		{
+			LocalPlayer->OnPlayerStateSet.Broadcast(LocalPlayer, PlayerState);
+		}
+	}
+}
