@@ -1,5 +1,3 @@
-﻿an
-
 # 02. Technical Architecture
 
 ## 当前工程状态
@@ -26,19 +24,23 @@ AllToolsets
 LiveCodingToolset
 ```
 
-当前项目插件：
+当前项目插件（`Plugins/` 目录下）：
 
 ```text
-GameplayMessageRouter
-AsyncMixin
-CommonLoadingScreen
-GameSettings
-CommonUser
-ModularGameplayActors
-CommonGame
+Setly                 Lyra 衍生前端框架（InputConfig、LyraInputComponent、UI Policy 等）
+UnrealCSharp          C# 脚本支持（辅助用途，核心逻辑仍走 C++）
+GameplayMessageRouter 本地消息总线
+AsyncMixin            异步加载/异步任务辅助
+CommonLoadingScreen   加载屏和加载过程管理
+GameSettings          Common UI 设置界面框架
+CommonUser            用户、平台、在线初始化封装
+ModularGameplayActors 支持 ModularGameplay/GameFeature 扩展的 Actor 基类
+CommonGame            Common UI 层级、UI Manager、LocalPlayer/PlayerController 基础设施
 ```
 
-当前项目仍是空工程阶段。本文档定义后续系统落地时的推荐架构。
+已有但暂未启用的插件：GameSubtitles、UIExtension（按需开启）。
+
+当前项目已搭建基础框架。本文档定义后续系统落地时的推荐架构。
 
 ## 总体架构原则
 
@@ -101,7 +103,7 @@ PlayerState
   -> 长生命周期玩家数据
   -> 等级、经验、职业、技能点
 
-HeroCharacter
+DOPlayerCharacter
   -> AvatarActor
   -> 移动、动画、碰撞、受击表现
   -> 不保存长期成长数据
@@ -163,7 +165,7 @@ Message.Debug.Network.StateChanged
 
 ```text
 OwnerActor  = PlayerState
-AvatarActor = HeroCharacter
+AvatarActor = DOPlayerCharacter
 ```
 
 理由：
@@ -175,8 +177,8 @@ AvatarActor = HeroCharacter
 怪物：
 
 ```text
-OwnerActor  = EnemyCharacter
-AvatarActor = EnemyCharacter
+OwnerActor  = DOCharacter
+AvatarActor = DOCharacter
 ```
 
 理由：
@@ -191,16 +193,20 @@ AvatarActor = EnemyCharacter
 
 ```text
 Source/DragonOath/AbilitySystem/
-  DOAbilitySystemComponent.h
-  DOGameplayAbility.h
+  Core/
+    DOAbilitySystemComponent.h
+    DOGameplayTag.h
   Abilities/
+    DOGameplayAbility.h
     GA_DO_NormalAttack.h
     GA_DO_DashStrike.h
     GA_DO_RisingSlash.h
     GA_DO_DragonFlame.h
   Attributes/
-    DOCombatAttributeSet.h
-    DOMovementAttributeSet.h
+    DOHealthSet.h
+    DOPlaySet.h
+  Pipeline/
+    GameplayEffectContext
   Executions/
     DODamageExecution.h
 
@@ -212,6 +218,15 @@ Source/DragonOath/Messages/
   DOGameplayMessages.h
   DOMessageGameplayTags.h
 ```
+
+当前已有的 AttributeSet：
+
+```text
+DOHealthSet    Health / MaxHealth / Damage / Healing
+DOPlaySet      Mana / MaxMana / Stamina / MaxStamina / AttackPower / DefensePower
+```
+
+后续属性拆分规划见 `Docs/06_Combat_Attribute_Design.md`。
 
 第一阶段 Ability：
 
@@ -317,10 +332,13 @@ Ability 激活
 第一版伤害公式可以简单：
 
 ```text
-BaseDamage = Attack * SkillRate
-FinalDamage = max(1, BaseDamage - TargetDefense)
-CriticalDamage = FinalDamage * CritDamage
+BaseDamage = AttackPower + SkillBaseDamage
+MitigatedDamage = max(1, BaseDamage - DefensePower)
+FinalDamage = MitigatedDamage * SkillDamageMultiplier
+CriticalDamage = FinalDamage * CritDamageRate
 ```
+
+详细属性设计和伤害公式见 `Docs/06_Combat_Attribute_Design.md`。
 
 后续再加入：
 
@@ -338,14 +356,18 @@ CriticalDamage = FinalDamage * CritDamage
 输入 Tag：
 
 ```text
-Input.Attack
-Input.Skill.1
-Input.Skill.2
-Input.Skill.3
-Input.Skill.4
-Input.Dash
-Input.Jump
+InputTag.Jump
+InputTag.Ability.Primary
+InputTag.Ability.Secondary
+InputTag.Ability.Skill1
+InputTag.Ability.Skill2
+InputTag.Ability.Skill3
+InputTag.Ability.Skill4
+InputTag.Ability.Ultimate
+InputTag.Ability.Dodge
 ```
+
+项目 Tag 集中声明在 `AbilitySystem/Core/DOGameplayTag.h`，不要手写 `FGameplayTag::RequestGameplayTag` 字符串。
 
 流程：
 

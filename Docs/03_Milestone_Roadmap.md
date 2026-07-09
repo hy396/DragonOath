@@ -2,17 +2,23 @@
 
 ## 当前阶段
 
-DragonOath 当前处于 M0：空项目规范阶段。
+DragonOath 当前处于 M1-M2 之间：基础工程骨架和 GAS 基础已部分完成。
 
 已完成：
 
-- UE 5.8 空工程
+- UE 5.8 工程搭建
 - Git 初始化和 `.gitignore`
-- Spec Kit 初始化
 - MCP/Toolset 插件启用
 - 基础开发文档整理
+- Lyra 基础设施插件纳入（Setly、GameplayMessageRouter 等）
+- C++ 目录结构搭建（AbilitySystem/Core、Abilities、Attributes、Pipeline、Characters、Player）
+- `UDOAbilitySystemComponent`、`UDOGameplayAbility` 基类
+- `DOHealthSet`、`DOPlaySet` 属性集
+- `DOGameplayTag` 集中 Tag 声明
+- `ADOPlayerState`、`ADOPlayerCharacter`、`ADOPlayerController`、`ADOCharacter` 基类
+- Enhanced Input + GameplayTag 输入框架
 
-下一阶段目标是建立可以长期扩展的最小技术骨架。
+下一阶段目标是建立可以长期扩展的最小技术骨架，完成 M2 剩余任务并进入 M3 基础战斗。
 
 ## M0：项目规范阶段
 
@@ -63,14 +69,15 @@ DragonOath 当前处于 M0：空项目规范阶段。
 
 任务：
 
-- 创建 `UDragonOathAbilitySystemComponent`
-- 创建 `UDragonOathCombatAttributeSet`
-- 玩家 ASC 放到 PlayerState
-- Character 初始化 AvatarActor
-- 添加 Health / Mana / Attack / Defense / Damage
+- 创建 `UDOAbilitySystemComponent`（已完成）
+- 创建 `UDOHealthSet` 和 `UDOPlaySet`（已完成）
+- 玩家 ASC 放到 PlayerState（已完成）
+- Character 初始化 AvatarActor（已完成）
+- 添加 Health / Mana / AttackPower / DefensePower / Damage
 - 绑定属性变化到 HUD
 - 属性变化后可通过本地消息通知 HUD
-- 配置基础 GameplayTags
+- 配置基础 GameplayTags（已完成）
+- 实现伤害 ExecutionCalculation
 
 验收：
 
@@ -139,7 +146,7 @@ DragonFlame  范围火焰斩
 
 任务：
 
-- EnemyCharacter
+- 怪物 Character（基于 `ADOCharacter`）
 - Enemy ASC
 - Enemy AttributeSet
 - StateTree/简单 C++ AI：索敌、靠近、攻击、返回

@@ -47,10 +47,14 @@ public:
 	ADOPlayerCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void OnRep_PlayerState() override;
 	virtual void UnPossessed() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 protected:
+	// 玩家角色的 ASC 由 PlayerState 持有，避免重生或换 Pawn 时丢失技能和属性。
+	virtual void InitializeAbilitySystem() override;
+
 	// 把默认 MappingContext 加到本地玩家的 Enhanced Input 子系统。
 	void AddDefaultInputMappings(UEnhancedInputLocalPlayerSubsystem* InputSubsystem);
 
@@ -91,4 +95,5 @@ protected:
 	TArray<uint32> AbilityInputBindHandles;
 	bool bDefaultInputMappingsAdded = false;
 	bool bInputBindingsAdded = false;
+
 };

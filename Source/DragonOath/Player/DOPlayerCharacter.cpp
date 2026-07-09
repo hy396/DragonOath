@@ -9,6 +9,7 @@
 #include "InputMappingContext.h"
 #include "LyraInputComponent.h"
 #include "Player/DOPlayerController.h"
+#include "Player/DOPlayerState.h"
 #include "SetlyGameplayTags.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 
@@ -33,6 +34,23 @@ ADOPlayerCharacter::ADOPlayerCharacter(const FObjectInitializer& ObjectInitializ
 
 	// 关闭引擎自带的“自动朝向移动方向”，我们自己控制转身逻辑
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+}
+
+void ADOPlayerCharacter::InitializeAbilitySystem()
+{
+	ADOPlayerState* DOPlayerState = GetPlayerState<ADOPlayerState>();
+	if (!DOPlayerState)
+	{
+		return;
+	}
+
+	InitializeAbilitySystemComponent(DOPlayerState->GetDOAbilitySystemComponent(), DOPlayerState);
+}
+
+void ADOPlayerCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	InitializeAbilitySystem();
 }
 
 void ADOPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -195,84 +213,33 @@ void ADOPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
 	{
 		return;
 	}
-
 	// W/S：沿世界纵深方向（X轴）移动，永远不改变角色朝向
 	if (FMath::Abs(Value.Y) > KINDA_SMALL_NUMBER)
 	{
-		AddMovementInput(FVector::ForwardVector, Value.Y);
+		AddMovementInput(FVector::RightVector, Value.Y);
 	}
 
 	// A/D：沿世界左右方向（Y轴）移动 + 角色转向移动方向
 	if (FMath::Abs(Value.X) > KINDA_SMALL_NUMBER)
 	{
-		AddMovementInput(FVector::RightVector, Value.X);
+		AddMovementInput(FVector::ForwardVector, Value.X);
 
-		const float TargetYaw = Value.X > 0.0f ? 90.0f : -90.0f;
+		const float TargetYaw = Value.X > 0.0f ? 0.0f : 180.0f;
+		const float CurrentYaw = GetActorRotation().Yaw;
+		// 核心优化1：计算最小角度差，自动处理-180/180°环绕问题
+		const float YawDelta = FMath::Abs(FMath::FindDeltaAngleDegrees(CurrentYaw, TargetYaw));
+		
+		// 核心优化2：只有角度差超过阈值时，才真正调用SetActorRotation
+		if (YawDelta > 0.1f)
+		{
+			SetActorRotation(FRotator(0.0f, TargetYaw, 0.0f));
+		}
 		const FRotator TargetRot(0.0f, TargetYaw, 0.0f);
-
 		// 平滑转身；想要原版瞬转翻面效果，直接删掉插值，改为 SetActorRotation(TargetRot)
-		SetActorRotation(TargetRot)
-		// const FRotator CurrentRot = GetActorRotation();
-		// const FRotator SmoothedRot = FMath::RInterpTo(CurrentRot, TargetRot, World->GetDeltaSeconds(), 15.0f);
-		// SetActorRotation(SmoothedRot);
+		SetActorRotation(TargetRot);
+
 	}
-	// AController* MovementController = GetController();
-	// if (!MovementController)
-	// {
-	// 	return;
-	// }
-
-	// const FVector2D Value = InputActionValue.Get<FVector2D>();
-	// const FRotator MovementRotation(0.0f, MovementController->GetControlRotation().Yaw, 0.0f);
-
-	// // 输入值使用控制器朝向转换，保证 WASD 始终相对当前镜头方向移动。
-	// if (Value.X != 0.0f)
-	// {
-	// 	const FVector MovementDirection = MovementRotation.RotateVector(FVector::RightVector);
-	// 	AddMovementInput(MovementDirection, Value.X);
-	// }
-
-	// if (Value.Y != 0.0f)
-	// {
-	// 	const FVector MovementDirection = MovementRotation.RotateVector(FVector::ForwardVector);
-	// 	AddMovementInput(MovementDirection, Value.Y);
-	// }
 }
-
-// void ADOPlayerCharacter::Input_LookMouse(const FInputActionValue& InputActionValue)
-// {
-// 	const FVector2D Value = InputActionValue.Get<FVector2D>();
-
-// 	if (Value.X != 0.0f)
-// 	{
-// 		AddControllerYawInput(Value.X);
-// 	}
-
-// 	if (Value.Y != 0.0f)
-// 	{
-// 		AddControllerPitchInput(Value.Y);
-// 	}
-// }
-
-// void ADOPlayerCharacter::Input_LookStick(const FInputActionValue& InputActionValue)
-// {
-// 	const FVector2D Value = InputActionValue.Get<FVector2D>();
-// 	const UWorld* World = GetWorld();
-// 	if (!World)
-// 	{
-// 		return;
-// 	}
-
-// 	if (Value.X != 0.0f)
-// 	{
-// 		AddControllerYawInput(Value.X * DragonOathInputTags::LookYawRate * World->GetDeltaSeconds());
-// 	}
-
-// 	if (Value.Y != 0.0f)
-// 	{
-// 		AddControllerPitchInput(Value.Y * DragonOathInputTags::LookPitchRate * World->GetDeltaSeconds());
-// 	}
-// }
 
 void ADOPlayerCharacter::Input_Jump(const FInputActionValue& /*InputActionValue*/)
 {

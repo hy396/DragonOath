@@ -3,7 +3,6 @@
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Player/DOPlayerState.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOCharacter)
 
@@ -38,12 +37,6 @@ void ADOCharacter::PossessedBy(AController* NewController)
 	InitializeAbilitySystem();
 }
 
-void ADOCharacter::OnRep_PlayerState()
-{
-	Super::OnRep_PlayerState();
-	InitializeAbilitySystem();
-}
-
 UAbilitySystemComponent* ADOCharacter::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
@@ -54,25 +47,22 @@ UDOAbilitySystemComponent* ADOCharacter::GetDOAbilitySystemComponent() const
 	return AbilitySystemComponent;
 }
 
-ADOPlayerState* ADOCharacter::GetDOPlayerState() const
-{
-	return GetPlayerState<ADOPlayerState>();
-}
-
 void ADOCharacter::InitializeAbilitySystem()
 {
-	ADOPlayerState* DOPlayerState = GetDOPlayerState();
-	if (!DOPlayerState)
+	// 怪物或 NPC 可以直接把 UDOAbilitySystemComponent 挂在自身 Actor 上。
+	if (UDOAbilitySystemComponent* OwnedASC = FindComponentByClass<UDOAbilitySystemComponent>())
+	{
+		InitializeAbilitySystemComponent(OwnedASC, this);
+	}
+}
+
+void ADOCharacter::InitializeAbilitySystemComponent(UDOAbilitySystemComponent* InAbilitySystemComponent, AActor* InOwnerActor)
+{
+	if (!InAbilitySystemComponent || !InOwnerActor)
 	{
 		return;
 	}
 
-	UDOAbilitySystemComponent* DOASC = DOPlayerState->GetDOAbilitySystemComponent();
-	if (!DOASC)
-	{
-		return;
-	}
-
-	AbilitySystemComponent = DOASC;
-	AbilitySystemComponent->InitAbilityActorInfo(DOPlayerState, this);
+	AbilitySystemComponent = InAbilitySystemComponent;
+	AbilitySystemComponent->InitAbilityActorInfo(InOwnerActor, this);
 }

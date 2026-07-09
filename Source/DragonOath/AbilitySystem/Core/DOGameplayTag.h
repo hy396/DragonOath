@@ -13,33 +13,12 @@
 namespace DragonOathGameplayTags
 {
 	// Gameplay 状态 / 阻塞类
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gameplay_AbilityInputBlocked);
-
-	// GameplayEvent
-    namespace Event
-    {
-        DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Death);
-    }
-
-	// // 原生输入
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Jump);
-
-	// // 技能输入槽位
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Primary);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Secondary);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Skill1);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Skill2);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Skill3);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Skill4);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Ultimate);
-	// DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Dodge);
-
-    // Gameplay 状态 / 阻塞类
-    namespace Gameplay
+	namespace Gameplay
 	{
 		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(AbilityInputBlocked);
 	}
 
+	// GameplayEvent
 	namespace Event
 	{
 		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Death);
@@ -48,7 +27,8 @@ namespace DragonOathGameplayTags
 	namespace InputTag
 	{
 		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Jump);
-        // 技能输入槽位
+
+		// 技能输入槽位
 		namespace Ability
 		{
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Primary);
@@ -60,5 +40,13 @@ namespace DragonOathGameplayTags
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ultimate);
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Dodge);
 		}
+	}
+
+	// 职业标识
+	namespace Profession
+	{
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(DragonFighter);
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mage);
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Archer);
 	}
 }

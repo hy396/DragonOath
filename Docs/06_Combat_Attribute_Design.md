@@ -1,406 +1,342 @@
 # 06. Combat Attribute Design
 
-状态：设计草案，先评审，不直接实施代码。
+状态：基于龙斗士原游戏复刻设计，先评审，不直接实施代码。
 
-参考资料：
+## 原游戏概要
+
+龙斗士是百田 2011 年上线的横版动作页游，已于 2024 年前后停止更新。核心战斗是 2D 横版动作格斗，强调连招、走位、技能释放节奏。
+
+七大基础职业：战士、弓箭手、法师、骑士、枪炮师、魔剑士、召唤师。每个职业可觉醒为进阶形态（如战士觉醒为炎龙战士）。
+
+职业属性排名（原游戏数据）：
 
 ```text
-E:\浏览器下载\龙斗士游戏属性大全.xlsx
+攻击：法师 > 魔剑士 > 弓箭手 > 枪炮师 > 战士 > 骑士
+生命：骑士 > 战士 > 枪炮师 > 魔剑士 > 弓箭手 > 法师
+防御：骑士 > 战士 > 枪炮师 > 魔剑士 > 弓箭手 > 法师
+法力：法师 > 魔剑士 > 弓箭手 > 枪炮师 > 战士 > 骑士
+速度：魔剑士 > 战士 > 法师 > 弓箭手 > 枪炮师 > 骑士
 ```
 
-当前 Excel 中的属性包括：
-
-```text
-力量、敏捷、智慧
-攻击、防御、生命、魔法、致命
-命中、闪避、移动速度
-吸血、霸体
-炎火攻击、雷电攻击、冰冻攻击、光明攻击、黑暗攻击
-元素抗性
-回血、回魔
-```
+原游戏的角色面板属性只有五项：**攻击、防御、生命、魔法、致命**。装备和宠物守护都加这五项，不区分物理攻击和魔法攻击。
 
 ## 设计目标
 
-这套属性系统要同时服务玩家、普通怪、精英怪、Boss、装备、技能和 Buff。
+复刻龙斗士原游戏的属性体系，同时适配 UE5 GAS 架构。
 
-核心目标：
-
-- 玩家和怪物都能使用同一套战斗公式。
-- 玩家可以有一级属性、装备成长、技能加成。
-- 怪物不必模拟完整玩家成长，可以直接配置最终战斗属性。
-- 防御、抗性、命中、闪避不能让战斗变成“打不动”或“总是空刀”。
-- GAS 中的 AttributeSet 只保存运行时数值，不把复杂战斗公式塞进 AttributeSet。
-
-最重要的原则：
+核心原则：
 
 ```text
-血量决定主要击杀时间。
-攻击决定主要威胁强度。
-防御和抗性只做手感微调，不作为主要堆数值手段。
+忠实复刻原游戏的属性分层和来源系统。
+统一攻击力和防御力，不区分物理/魔法。
+宠物守护神是核心成长系统，不是附属功能。
+装备强化（+1 到 +15）是主要属性来源。
+横版动作格斗：操作 > 数值，属性决定下限，操作决定上限。
 ```
 
 ## 属性分层
 
-### 一级属性
+### 一级属性（基础属性）
 
-一级属性主要给玩家、装备、成长系统使用。
+原游戏有三项基础属性，影响二级属性的转换：
+
+| 属性 | 英文 | 影响的二级属性 |
+|---|---|---|
+| 力量 | Strength | 攻击力、少量生命、少量防御 |
+| 敏捷 | Agility | 攻击速度、命中率、闪避率、移动速度 |
+| 智力 | Intelligence | 魔法值、魔法回复、少量攻击 |
+
+一级属性主要给玩家使用。怪物直接配置最终战斗属性，不走一级属性转换。
+
+转换比例（起始值，后续根据手感调整）：
 
 ```text
-Strength   力量
-Agility    敏捷
-Wisdom     智慧
+1 力量  -> 1.5 AttackPower + 0.5 DefensePower + 2 MaxHealth
+1 敏捷  -> 0.3% HitChance + 0.1% EvasionChance + 0.2 AttackSpeed + 0.5 MoveSpeed
+1 智力  -> 5 MaxMana + 0.5 ManaRegen + 0.3 AttackPower
 ```
 
-推荐用途：
+### 动作资源
+
+体力（Stamina）是独立的动作资源条，只用于冲刺/闪避消耗，不受一级属性影响。
 
 ```text
-力量 -> 攻击、少量生命
-敏捷 -> 命中、闪避、攻击速度或移动相关属性
-智慧 -> 魔法、回魔、部分元素伤害
+Stamina / MaxStamina    冲刺、闪避等动作消耗，消耗后自动回复
 ```
 
-普通怪不建议强行配置力量、敏捷、智慧。怪物可以直接配置最终属性，例如攻击、防御、生命、命中、闪避。
+MaxStamina 的值固定或随角色等级成长，不通过一级属性转换。这与原游戏一致：体力只是一个动作限制条，不是成长属性。
 
-原因：
+### 二级属性（战斗属性）
+
+核心战斗属性（原游戏面板五项）：
+
+| 属性 | 英文 | 说明 |
+|---|---|---|
+| 最大生命 | MaxHealth | 生命值上限 |
+| 最大魔法 | MaxMana | 魔法值上限，用于技能消耗 |
+| 攻击力 | AttackPower | 伤害基础值，所有技能共用 |
+| 防御力 | DefensePower | 减少受到的所有伤害 |
+| 致命 | CriticalRating | 致命一击的数值，通过公式换算为暴击率 |
+
+进阶战斗属性：
+
+| 属性 | 英文 | 说明 |
+|---|---|---|
+| 暴击伤害倍率 | CritDamageRate | 暴击时伤害倍率，默认 1.5 |
+| 命中 | HitRating | 命中数值，换算为命中率 |
+| 闪避 | EvasionRating | 闪避数值，换算为闪避率 |
+| 攻击速度 | AttackSpeed | 影响攻击动画速度和技能前摇 |
+| 移动速度 | MoveSpeed | 影响角色移动速度 |
+| 吸血 | LifeStealRate | 按最终伤害比例回复生命 |
+
+回复属性：
+
+| 属性 | 英文 | 说明 |
+|---|---|---|
+| 生命回复 | HealthRegen | 每秒回复生命值 |
+| 魔法回复 | ManaRegen | 每秒回复魔法值 |
+
+### 元素属性
+
+原游戏有五系元素攻击，每系独立配置：
+
+| 属性 | 英文 | 说明 |
+|---|---|---|
+| 炎火攻击 | FireAttack | 火属性伤害附加 |
+| 雷电攻击 | LightningAttack | 雷属性伤害附加 |
+| 冰冻攻击 | IceAttack | 冰属性伤害附加，可能附带减速 |
+| 光明攻击 | LightAttack | 光属性伤害附加 |
+| 黑暗攻击 | DarkAttack | 暗属性伤害附加 |
+
+元素抗性（第一阶段统一，后期可拆分五系）：
+
+| 属性 | 英文 | 说明 |
+|---|---|---|
+| 元素抗性 | ElementResistance | 减少受到的元素伤害 |
+
+## 伤害公式
+
+### 基础伤害
+
+原游戏的伤害公式是简单减法，复刻时保留这一特点但加入保底机制：
 
 ```text
-玩家需要成长感，所以一级属性有价值。
-怪物需要好调表，所以直接配置最终属性更省心。
+RawDamage = SkillBaseDamage + AttackPower
+MitigatedDamage = max(1, RawDamage - DefensePower)
+FinalDamage = MitigatedDamage * SkillDamageMultiplier
 ```
 
-### 核心战斗属性
+`max(1, ...)` 保证最低 1 点伤害，避免防御过高导致打不动。
 
-这些属性玩家和怪物都可以拥有。
+所有技能都读取统一的 AttackPower 和 DefensePower，不同职业的差异通过技能本身的 SkillBaseDamage 和 SkillDamageMultiplier 体现。法师的技能基础伤害和倍率更高，所以面板攻击力排名最高。
+
+### 暴击（致命）
+
+致命是数值型属性，通过公式换算为暴击率：
 
 ```text
-MaxHealth      最大生命
-MaxMana        最大魔法
-AttackPower    攻击力
-DefensePower   防御力
+CritChance = CriticalRating / (CriticalRating + CritScale)
 ```
 
-当前代码里：
+其中 `CritScale = 200 + AttackerLevel * 10`，保证暴击率有收益递减。
+
+暴击时伤害：
 
 ```text
-DOHealthSet    负责 Health / MaxHealth / Damage / Healing
-DOPlaySet      已有 Mana / MaxMana / Stamina / MaxStamina / AttackPower / DefensePower
+FinalDamage = FinalDamage * CritDamageRate
 ```
 
-第一阶段可以继续沿用当前结构。等属性变多以后，再考虑拆出：
+默认 `CritDamageRate = 1.5`。
+
+示例（等级 10 时 CritScale = 300）：
 
 ```text
-DOResourceSet  Mana / Stamina / Regen
-DOCombatSet    Attack / Defense / Crit / Hit / Evasion / MoveSpeed
-DOElementSet   ElementAttack / ElementResistance
+CriticalRating = 30  -> 暴击率约 9%
+CriticalRating = 75  -> 暴击率约 20%
+CriticalRating = 150 -> 暴击率约 33%
+CriticalRating = 300 -> 暴击率约 50%
 ```
 
-### 进阶战斗属性
+### 命中和闪避
 
-这些属性建议做成“评分”或“百分比”，不要混着用。
-
-推荐第一阶段先用百分比，便于调试：
+横版动作游戏里，玩家通过走位和技能范围决定是否命中。命中/闪避主要用于自动攻击、召唤物、怪物攻击。
 
 ```text
-CritChance      暴击率，0.15 表示 15%
-CritDamageRate  暴击伤害倍率，默认 1.5
-HitChance       命中率，0.90 表示 90%
-EvasionChance   闪避率，0.05 表示 5%
-MoveSpeed       移动速度
-```
-
-后期如果装备数值膨胀，再改成 Rating：
-
-```text
-CritRating -> 公式换算 CritChance
-HitRating -> 公式换算 HitChance
-EvasionRating -> 公式换算 EvasionChance
-```
-
-### 战斗特效属性
-
-```text
-LifeStealRate   吸血比例
-SuperArmor      霸体相关属性
-HealthRegen     回血
-ManaRegen       回魔
-```
-
-吸血推荐按最终伤害计算：
-
-```text
-Heal = FinalDamage * LifeStealRate
-```
-
-注意：
-
-```text
-只有带 Damage.CanLifeSteal 标签的伤害才触发吸血。
-持续伤害、反伤、环境伤害默认不触发吸血。
-```
-
-霸体不建议一开始做成纯随机概率。横版动作游戏里，随机“不被打断”会让玩家感觉不公平。
-
-推荐拆成两层：
-
-```text
-Status.SuperArmor       当前处于霸体状态，用 GameplayTag 表示
-Poise / MaxPoise        韧性值，受到攻击时减少，归零后可被打断
-```
-
-第一阶段简单做法：
-
-```text
-普通怪：没有霸体，少量韧性
-精英怪：部分技能期间加 Status.SuperArmor
-Boss：阶段或技能期间加 Status.SuperArmor
-玩家：某些技能释放期间获得短霸体
-```
-
-## 防御设计
-
-你纠结“小怪也有防御怎么办”，核心答案是：
-
-```text
-小怪当然可以有防御，但防御不要用线性减法。
-```
-
-不推荐：
-
-```text
-FinalDamage = Attack - Defense
-```
-
-问题：
-
-```text
-低攻击打高防御会变成 0 伤害。
-数值稍微调高，手感就突然崩。
-小怪一旦有防御，新手玩家会觉得打不动。
-```
-
-推荐：
-
-```text
-DamageReduction = DefensePower / (DefensePower + DefenseScale)
-FinalPhysicalDamage = RawPhysicalDamage * (1 - DamageReduction)
-```
-
-其中：
-
-```text
-DefenseScale = 100 + DefenderLevel * 10
-```
-
-这是第一阶段可用的简单曲线。它的好处是防御收益递减，不会轻易把伤害压到 0。
-
-示例：
-
-```text
-等级 10 时 DefenseScale = 200
-
-DefensePower = 22  -> 减伤约 10%
-DefensePower = 50  -> 减伤约 20%
-DefensePower = 86  -> 减伤约 30%
-DefensePower = 200 -> 减伤约 50%
-```
-
-反推公式：
-
-```text
-DefensePower = DefenseScale * TargetReduction / (1 - TargetReduction)
-```
-
-这意味着策划表里可以先填“目标减伤比例”，再自动算 DefensePower。
-
-## 怪物防御分配
-
-怪物的生命决定它能活多久，防御只决定它“硬不硬”的手感。
-
-建议范围：
-
-| 类型 | 目标减伤 | 设计目的 |
-| --- | ---: | --- |
-| 普通小怪 | 5% - 12% | 让玩家打起来爽，不要拖时间 |
-| 厚血小怪 | 10% - 18% | 感觉更耐打，但主要靠血量 |
-| 盾兵/重甲怪 | 18% - 28% | 明确表现“硬”，但要有破盾或背击解法 |
-| 精英怪 | 15% - 25% | 比普通怪稳，不应过度刮痧 |
-| Boss | 20% - 35% | 稳定耐打，主要靠血量和阶段机制 |
-| 特殊免伤阶段 | 40% - 60% | 只用于短时间机制，不做常驻 |
-
-第一阶段建议：
-
-```text
-普通怪 DefensePower 不要超过同级 15% 减伤。
-Boss 常驻减伤不要超过 35%。
-超过 35% 的减伤要通过 Buff、护盾、阶段机制表现出来。
-```
-
-这样做的结果：
-
-```text
-小怪可以有防御，但不会让玩家觉得打不动。
-Boss 可以有防御，但主要挑战来自机制、血量和攻击节奏。
-```
-
-## 元素攻击和元素抗性
-
-Excel 中的元素攻击：
-
-```text
-炎火攻击
-雷电攻击
-冰冻攻击
-光明攻击
-黑暗攻击
-```
-
-Excel 说明是“无视敌人普通防御力”。这里建议理解为：
-
-```text
-元素伤害不吃 DefensePower。
-元素伤害吃 ElementResistance。
-```
-
-第一阶段简单设计：
-
-```text
-FireAttack
-LightningAttack
-IceAttack
-LightAttack
-DarkAttack
-ElementResistance
-```
-
-统一元素抗性公式：
-
-```text
-ElementReduction = ElementResistance / (ElementResistance + ResistanceScale)
-FinalElementDamage = RawElementDamage * (1 - ElementReduction)
-```
-
-后期如果要做怪物弱点，再拆成：
-
-```text
-FireResistance
-LightningResistance
-IceResistance
-LightResistance
-DarkResistance
-```
-
-弱点可以用负抗性表达，但要限制范围：
-
-```text
-最低 -50% 承伤提升
-最高 75% 减伤
-```
-
-## 命中和闪避
-
-横版动作 RPG 里，玩家已经通过走位、跳跃、技能范围来决定是否命中。命中/闪避如果做得太随机，会削弱操作反馈。
-
-第一阶段建议保守使用：
-
-```text
-玩家主动技能默认不随机 Miss。
-命中/闪避主要用于自动追踪、召唤物、怪物普通攻击、远程弹道修正。
-```
-
-简单公式：
-
-```text
-FinalHitChance = Clamp(BaseHitChance + AttackerHit - DefenderEvasion, MinHitChance, MaxHitChance)
+FinalHitChance = Clamp(BaseHitChance + AttackerHitRating / HitScale - DefenderEvasionRating / EvasionScale, 0.05, 0.98)
 ```
 
 初始参数：
 
 ```text
 BaseHitChance = 0.90
-MinHitChance  = 0.20
-MaxHitChance  = 0.98
+HitScale = 200 + AttackerLevel * 10
+EvasionScale = 200 + DefenderLevel * 10
 ```
 
-普通小怪：
+### 元素伤害
+
+元素伤害独立于基础伤害，不吃 DefensePower：
 
 ```text
-HitChance 0.80 - 0.90
-EvasionChance 0.00 - 0.05
+ElementDamage = FireAttack + LightningAttack + IceAttack + LightAttack + DarkAttack
+FinalElementDamage = ElementDamage * (1 - ElementReduction)
 ```
 
-高敏捷怪：
+元素抗性公式：
 
 ```text
-EvasionChance 0.08 - 0.15
+ElementReduction = ElementResistance / (ElementResistance + ResistanceScale)
 ```
 
-Boss：
+其中 `ResistanceScale = 100 + DefenderLevel * 10`。
+
+### 吸血
 
 ```text
-默认不高闪避，避免玩家技能经常落空。
-Boss 的难度主要来自机制，不来自随机闪避。
+Heal = FinalDamage * LifeStealRate
 ```
 
-## 暴击设计
+只有带 `Damage.CanLifeSteal` 标签的伤害才触发吸血。持续伤害、反伤、环境伤害默认不触发。
 
-第一阶段用简单百分比：
+### 计算顺序
 
 ```text
-CritChance = 0.05 - 0.30
-CritDamageRate = 1.5
+1. 读取攻击者 AttackPower 和技能基础伤害/倍率
+2. 计算基础伤害 = SkillBaseDamage + AttackPower
+3. 防御减免 = max(1, 基础伤害 - DefensePower)
+4. 命中判定（如果适用）
+5. 暴击判定，如果暴击乘以 CritDamageRate
+6. 元素伤害单独计算
+7. 最终伤害 = 基础伤害 + 元素伤害
+8. 吸血计算
 ```
 
-推荐规则：
+## 霸体与韧性
+
+原游戏的横版动作战斗中，霸体是重要的战斗机制。
+
+第一阶段做法：
 
 ```text
-普通怪低暴击或无暴击。
-精英怪可以有 5% - 10% 暴击。
-Boss 不建议高随机暴击，除非技能有明显前摇和提示。
-玩家暴击成长主要来自装备、敏捷、Buff。
+Status.SuperArmor       当前处于霸体状态，用 GameplayTag 表示
+Poise / MaxPoise        韧性值，受到攻击时减少，归零后可被打断
 ```
 
-暴击计算顺序：
+各单位配置：
 
 ```text
-RawDamage
--> 防御或抗性
--> 暴击倍率
--> 最终伤害
--> 吸血和伤害数字
+普通怪：没有霸体，少量韧性
+精英怪：部分技能期间加 Status.SuperArmor
+Boss：阶段或技能期间加 Status.SuperArmor
+玩家：某些技能释放期间获得短霸体（如战士的战神之躯）
 ```
-
-如果希望暴击更爽，也可以先暴击再防御；但第一阶段推荐防御后暴击，数值更稳定。
 
 ## 玩家属性来源
 
-玩家最终属性来自多层叠加：
+原游戏中玩家最终属性来自多层叠加，这是复刻的重点：
 
 ```text
 职业基础属性
-+ 等级成长
-+ 装备属性
-+ 宝石 / 守护者 / 称号
-+ 技能被动
++ 等级成长（每次升级自动提升一级属性）
++ 觉醒加成（觉醒后额外属性提升）
++ 装备属性（武器、防具、饰品）
++ 装备强化（+1 到 +15，每级提升装备属性）
++ 宠物守护神（攻击、防御、生命、魔法、致命五项守护）
++ 称号属性加成
++ 圣衣/时装属性加成
++ 技能被动加成
 + 临时 Buff / Debuff
 = 最终 AttributeSet 数值
 ```
 
-玩家一级属性转换建议：
+### 职业基础属性
+
+每个职业有不同的基础属性和成长率：
+
+| 职业 | 生命成长 | 防御成长 | 攻击成长 | 速度 |
+|---|---|---|---|---|
+| 骑士 | 最高 | 最高 | 最低 | 最慢 |
+| 战士 | 高 | 高 | 低 | 较快 |
+| 枪炮师 | 中 | 中 | 中 | 较慢 |
+| 魔剑士 | 中 | 中 | 高 | 最快 |
+| 弓箭手 | 低 | 低 | 中 | 中 |
+| 法师 | 最低 | 最低 | 最高 | 中 |
+
+### 装备系统
+
+装备品质：
 
 ```text
-1 力量  -> 1.5 AttackPower + 2 MaxHealth
-1 敏捷  -> 0.2% HitChance + 0.1% EvasionChance
-1 智慧  -> 3 MaxMana + 0.5 ManaRegen + 少量元素攻击
+白色（普通）< 蓝色（优秀）< 紫色（稀有）< 橙色（传说）
 ```
 
-这些转换比例只是起步值，后面要根据实际手感改。
+装备强化：
+
+```text
+1-15 级装备：最高强化到 +6
+16 级以上装备：最高强化到 +15
+```
+
+强化材料：
+
+```text
+1 级强化石：所有强化等级
+2 级强化石：+6 以上
+3 级强化石：+10 以上或紫色品质以上
+```
+
+每级强化提升装备基础属性的一定百分比。
+
+### 宠物守护神
+
+原游戏的核心成长系统。宠物可以设置为守护神，为角色提供额外属性。
+
+五项守护属性对应面板五项：
+
+| 守护类型 | 说明 | 典型宠物 |
+|---|---|---|
+| 攻击守护 | 增加攻击力 | 夜兔王、毁灭天兽、赤焰斗神 |
+| 防御守护 | 增加防御力 | 海魔王、铁甲威龙、泰坦 |
+| 生命守护 | 增加最大生命 | 创世神罗、暴风战神、米兰英雄 |
+| 魔法守护 | 增加最大魔法 | 海洋女神、海神之子、蓝海元素 |
+| 致命守护 | 增加致命值 | 超龙王雷恩、古拉兽、七彩精灵 |
+
+守护值取决于宠物自身的对应属性数值和星级。守护石可以进一步提升守护效果。
+
+GAS 实现方案：
+
+```text
+每个宠物守护 GE 根据宠物属性动态计算 Modifier magnitude
+攻击守护 GE -> AttackPower
+防御守护 GE -> DefensePower
+生命守护 GE -> MaxHealth
+魔法守护 GE -> MaxMana
+致命守护 GE -> CriticalRating
+```
+
+### 称号系统
+
+称号按品质提供不同额度的属性加成：
+
+```text
+白色 < 红色 < 蓝色 < 金色 < 紫色
+```
+
+金色和紫色称号提供最大属性加成。同一时间只能激活一个称号。
+
+### 圣衣/时装
+
+商城购买的圣衣除了外观变化，还提供额外属性：
+
+```text
+例：星皇圣衣 -> +1000 攻击力、+6000 生命、+3000 防御
+```
 
 ## 怪物属性来源
 
-怪物推荐直接配置最终属性，不走一级属性转换。
+怪物直接配置最终战斗属性，不走一级属性转换。
 
-怪物数据表建议字段：
+怪物数据表字段：
 
 ```text
 MonsterId
@@ -409,200 +345,220 @@ Level
 Rank                Normal / Heavy / Elite / Boss
 MaxHealth
 AttackPower
-DefenseReduction    目标物理减伤，策划可读字段
-DefensePower        可由 DefenseReduction 自动计算
-HitChance
-EvasionChance
-CritChance
+DefensePower
+CriticalRating
+HitRating
+EvasionRating
+AttackSpeed
 MoveSpeed
 ElementResistance
 HealthRegen
 Tags
 ```
 
-普通怪示例：
+怪物减伤建议范围：
+
+| 类型 | 减伤 | 设计目的 |
+|---|---:|---|
+| 普通小怪 | 5% - 12% | 打起来爽，不拖时间 |
+| 厚血小怪 | 10% - 18% | 主要靠血量 |
+| 盾兵/重甲怪 | 18% - 28% | 明确表现"硬"，但要有破盾或背击解法 |
+| 精英怪 | 15% - 25% | 比普通怪稳 |
+| Boss | 20% - 35% | 主要靠血量和机制 |
+| 免伤阶段 | 40% - 60% | 短时间机制，非常驻 |
+
+## GAS 落地
+
+### AttributeSet 规划
+
+当前代码：
 
 ```text
-Level = 10
-Rank = Normal
-TargetTimeToKill = 4 秒
-DefenseReduction = 0.10
-CritChance = 0
-EvasionChance = 0.03
+DOHealthSet    Health / MaxHealth / Damage / Healing
+DOPlaySet      Mana / MaxMana / Stamina / MaxStamina / AttackPower / DefensePower
 ```
 
-精英怪示例：
+当前 DOPlaySet 已有 AttackPower / DefensePower，不需要改造。后续属性增多后拆为独立 AttributeSet：
 
 ```text
-Level = 10
-Rank = Elite
-TargetTimeToKill = 20 秒
-DefenseReduction = 0.20
-CritChance = 0.05
-EvasionChance = 0.05
+DOHealthSet       Health / MaxHealth / Damage / Healing / HealthRegen
+DOResourceSet     Mana / MaxMana / Stamina / MaxStamina / ManaRegen
+DOCombatSet       AttackPower / DefensePower
+                  CriticalRating / CritDamageRate / HitRating / EvasionRating
+                  AttackSpeed / MoveSpeed / LifeStealRate
+DOElementSet      FireAttack / LightningAttack / IceAttack / LightAttack / DarkAttack
+                  ElementResistance
+DOPrimarySet      Strength / Agility / Intelligence（仅玩家）
 ```
 
-Boss 示例：
+### GameplayEffect 分层
 
 ```text
-Level = 10
-Rank = Boss
-TargetTimeToKill = 120 秒
-DefenseReduction = 0.30
-CritChance = 0
-EvasionChance = 0
-Status.SuperArmor 在指定技能和阶段期间开启
+职业基础 GE      -> 一级属性（力量/敏捷/智力）
+等级成长 GE      -> 每级提升一级属性
+觉醒 GE          -> 觉醒后额外属性
+装备 GE          -> 攻击/防御等二级属性
+强化 GE          -> 装备属性百分比提升
+宠物守护 GE      -> 攻击/防御/生命/魔法/致命
+称号 GE          -> 全属性加成
+圣衣 GE          -> 固定属性加成
+技能被动 GE      -> 各类属性加成
+Buff/Debuff GE   -> 临时属性变化
 ```
 
-## TTK 平衡方法
+### 移动速度落地
 
-TTK 是 Time To Kill，也就是击杀时间。
+MoveSpeed 是 GAS 属性，但 `CharacterMovementComponent::MaxWalkSpeed` 不是。需要桥接。
 
-先定同级玩家的基准输出：
+推荐做法：在角色类中用 `GetGameplayAttributeValueChangeDelegate` 监听 MoveSpeed 属性变化，直接写入 `MaxWalkSpeed`。这比在 AttributeSet 的 `PostGameplayEffectExecute` 中处理更清晰，因为属性变化的响应属于角色行为，不属于属性集职责。
 
-```text
-PlayerDPS = 玩家同级平均每秒伤害
+```cpp
+// DOCharacter.h
+protected:
+    void BindAttributeChangeDelegates();
+    void OnMoveSpeedChanged(const FOnAttributeChangeData& Data);
 ```
 
-再定怪物目标生存时间：
+```cpp
+// DOCharacter.cpp
+void ADOCharacter::BindAttributeChangeDelegates()
+{
+    if (UDOAbilitySystemComponent* DOASC = GetDOAbilitySystemComponent())
+    {
+        DOASC->GetGameplayAttributeValueChangeDelegate(
+            UDOPlaySet::GetMoveSpeedAttribute()
+        ).AddUObject(this, &ADOCharacter::OnMoveSpeedChanged);
+    }
+}
 
-```text
-NormalMonsterTTK = 3 - 6 秒
-EliteMonsterTTK  = 15 - 30 秒
-BossTTK          = 90 - 180 秒
+void ADOCharacter::OnMoveSpeedChanged(const FOnAttributeChangeData& Data)
+{
+    // MoveSpeed 属性值就是最终移动速度，直接写入
+    GetCharacterMovement()->MaxWalkSpeed = Data.NewValue;
+}
 ```
 
-怪物血量估算：
+绑定时机：在 ASC 初始化（`InitAbilityActorInfo`）之后调用 `BindAttributeChangeDelegates`。玩家在 `PossessedBy` / `OnRep_PlayerState` 中调用，怪物在 `ServerSideInit` 中调用。
+
+设计说明：
 
 ```text
-MonsterHealth = PlayerDPS * TargetTTK * ExpectedDamageMultiplier
+MoveSpeed 属性 = 角色最终移动速度
+职业基础速度、装备加成、Buff 减速全部通过 GE 叠加修改 MoveSpeed
+MaxWalkSpeed = MoveSpeed 当前值
 ```
 
-如果怪物有 20% 减伤：
+不设单独的 BaseMoveSpeed，职业速度差异、装备加成、Buff 效果全部走 GE 叠加，统一通过 MoveSpeed 属性驱动 `MaxWalkSpeed`。这样所有速度修改方式一致，不需要区分"基础值"和"加成值"。
+
+冲刺技能中 `GetMaxSpeed()` 读取的就是 `CharacterMovementComponent->GetMaxSpeed()`，即 MoveSpeed 的当前值，用于 RootMotion 结束时的速度限制。
+
+怪物同样适用：怪物数据表中的 `MoveSpeed` 字段通过 GE 施加后，通过同一个 delegate 自动同步到 `MaxWalkSpeed`。
+
+### ExecutionCalculation
+
+伤害公式放在 ExecutionCalculation 中，不写在 AttributeSet 里：
 
 ```text
-ExpectedDamageMultiplier = 0.8
+读取攻击者：AttackPower / CriticalRating / HitRating / ElementAttack
+读取目标：DefensePower / EvasionRating / ElementResistance
+计算：命中 -> 防御减免 -> 暴击 -> 元素伤害 -> 吸血
+输出：Damage Meta Attribute
 ```
 
-反过来：
+### 网络复制
+
+所有战斗属性使用 `ReplicatedUsing=OnRep_XXX` 同步。
+
+一级属性（力量/敏捷/智力）仅服务端修改，客户端通过 OnRep 刷新 UI。
+
+伤害 Meta Attribute（Damage / Healing）不同步，只在服务端 PostGameplayEffectExecute 中处理。
+
+## 实施阶段
+
+### 第一阶段：核心战斗闭环
+
+当前 DOPlaySet 已有 AttackPower / DefensePower，不需要改造：
 
 ```text
-MonsterHealth = PlayerDPS * TargetTTK * 0.8
-```
-
-这个思路能避免一开始乱填生命和防御。
-
-玩家承伤也类似：
-
-```text
-PlayerSurvivalTime = PlayerHealth / MonsterDPSAfterDefense
-```
-
-推荐目标：
-
-```text
-普通小怪单只：玩家能扛 20 秒以上
-普通小怪群体：玩家需要走位，但不会瞬间暴毙
-精英怪：玩家吃完整连招会危险
-Boss：大招必须躲，小技能可以承受几次
-```
-
-## GAS 落地建议
-
-AttributeSet 只保存最终运行时数值：
-
-```text
-Health / MaxHealth
+Health / MaxHealth / Damage / Healing
 Mana / MaxMana
-Stamina / MaxStamina
 AttackPower / DefensePower
-CritChance / CritDamageRate
-HitChance / EvasionChance
-MoveSpeed
+```
+
+完成基础伤害公式 ExecutionCalculation。
+
+### 第二阶段：进阶属性
+
+新增 DOCombatSet：
+
+```text
+CriticalRating / CritDamageRate
+HitRating / EvasionRating
+AttackSpeed / MoveSpeed
 LifeStealRate
-ElementAttack / ElementResistance
 HealthRegen / ManaRegen
 ```
 
-GameplayEffect 负责修改属性：
+### 第三阶段：一级属性和成长
+
+新增 DOPrimarySet（仅玩家）：
 
 ```text
-装备 GE：长期加属性
-Buff GE：临时加属性
-技能消耗 GE：扣 Mana / Stamina
-伤害 GE：写入 Damage Meta Attribute
-治疗 GE：写入 Healing Meta Attribute
+Strength / Agility / Intelligence
 ```
 
-ExecutionCalculation 负责战斗公式：
+实现一级属性到二级属性的转换 GE。
+
+实现职业基础属性和等级成长。
+
+### 第四阶段：元素系统
+
+新增 DOElementSet：
 
 ```text
-读取攻击者 AttackPower / ElementAttack / CritChance
-读取目标 DefensePower / ElementResistance / EvasionChance
-计算命中、暴击、防御、抗性
-输出 Damage Meta Attribute
+FireAttack / LightningAttack / IceAttack / LightAttack / DarkAttack
+ElementResistance
 ```
 
-AttributeSet 负责最后应用：
+### 第五阶段：成长系统
 
 ```text
-PostGameplayEffectExecute 中把 Damage 转成 Health 减少
-把 Healing 转成 Health 增加
-Clamp 到合法范围
-广播本地 UI / 战斗消息
+装备系统 GE（装备属性 + 强化等级）
+宠物守护神 GE（五项守护属性）
+称号系统 GE
+圣衣系统 GE
+觉醒系统 GE
 ```
 
-## 第一阶段实施顺序
+## 职业技能消耗
 
-建议不要一次把所有属性都写进代码。
-
-第一阶段只做核心闭环：
+原游戏中技能消耗魔法值。不同职业的魔法值上限差异很大：
 
 ```text
-Health / MaxHealth
-Mana / MaxMana
-Stamina / MaxStamina
-AttackPower / DefensePower
-Damage / Healing
+法师：魔法值最高，技能消耗大
+骑士：魔法值最低，技能消耗小或不需要
 ```
 
-第二阶段加入：
+技能 GE 设置 Mana 消耗：
 
 ```text
-CritChance / CritDamageRate
-MoveSpeed
-HealthRegen / ManaRegen
+Cost GE -> Mana -= SkillManaCost
 ```
 
-第三阶段加入：
+如果 Mana 不足，CanActivateAbility 返回 false。
+
+部分技能可能消耗生命值代替魔法值（如战士的某些特殊技能）。
+
+## 总结
+
+本方案忠实复刻龙斗士原游戏的属性体系，核心改动点：
 
 ```text
-HitChance / EvasionChance
-LifeStealRate
-SuperArmor / Poise
+统一攻击力和防御力，不区分物理/魔法
+致命从简单百分比改为数值型 Rating 系统
+补全宠物守护神作为核心成长系统
+装备强化 +1 到 +15 作为主要属性来源
+伤害公式回归简单减法，加保底机制
+一级属性为力量/敏捷/智力三项，体力改为独立动作资源
+新增攻击速度属性
 ```
-
-第四阶段加入：
-
-```text
-五系元素攻击
-元素抗性
-怪物弱点
-守护者系统属性
-```
-
-## 当前推荐结论
-
-现在不要纠结“小怪到底该不该有防御”。
-
-推荐结论：
-
-```text
-所有可受伤单位都可以有 DefensePower。
-普通怪 DefensePower 很低，只提供 5% - 12% 减伤。
-精英和 Boss 防御稍高，但主要靠血量和机制撑时长。
-元素伤害无视 DefensePower，但受到 ElementResistance 影响。
-复杂公式放 ExecutionCalculation，AttributeSet 只管保存和 Clamp。
-```
-
-这套方案适合先做出可玩的战斗，再逐步加复杂成长系统。

@@ -37,7 +37,7 @@ DragonOath 主游戏模块采用 Lyra 风格的“功能域目录”。
 
 参考项目结论：
 
-- LyraGame 官方项目：主模块根目录按 `AbilitySystem`、`Character`、`Inventory`、`Messages`、`UI` 等功能域组织，不强制模块级 `Public/Private`。
+- LyraGame 官方项目：主模块根目录按 `AbilitySystem`、`Characters`、`Inventory`、`Messages`、`UI` 等功能域组织，不强制模块级 `Public/Private`。
 - MMOARPG：模块根目录下按 `Core`、`UI` 等功能域组织，路径短，适合项目型代码。
 - Aura：`Public/Private` 镜像分层很规整，适合教学和库式模块，但路径会更长。
 - Crunch：只使用 `Private` 也能保持封装，但公共 API 边界不如 Lyra 式功能域直观。
@@ -56,19 +56,19 @@ DragonOath 主游戏模块采用 Lyra 风格的“功能域目录”。
 Source/DragonOath/
   DragonOath.Build.cs
   DragonOathModule.cpp
-  DragonOathGameplayTags.h
-  DragonOathGameplayTags.cpp
-  DragonOathLogChannels.h
-  DragonOathLogChannels.cpp
   AbilitySystem/
+    Core/
+      DOGameplayTag.h
+      DOGameplayTag.cpp
     Abilities/
     Attributes/
+    Pipeline/
     Executions/
     Tasks/
   Animation/
   Audio/
   Camera/
-  Character/
+  Characters/
   Combat/
   Enemy/
     AI/
@@ -149,14 +149,16 @@ I  Interface
 E  Enum
 ```
 
-项目类命名建议：
+项目类命名统一使用 `DO` 前缀（而非 `DragonOath`）：
 
 ```text
-ADragonOathHeroCharacter
-ADragonOathEnemyCharacter
-UDragonOathAbilitySystemComponent
-UDragonOathCombatAttributeSet
-UDragonOathInventoryComponent
+ADOPlayerCharacter
+ADOCharacter
+UDOAbilitySystemComponent
+UDOGameplayAbility
+UDOHealthSet
+UDOPlaySet
+UDOInventoryComponent
 UGA_DO_NormalAttack
 UGA_DO_DashStrike
 UGE_DO_Damage
@@ -165,18 +167,22 @@ UGE_DO_Damage
 GameplayTag 命名建议：
 
 ```text
-Input.Attack
-Input.Skill.1
-Input.Skill.2
-Input.Skill.3
-Input.Dash
+InputTag.Jump
+InputTag.Ability.Primary
+InputTag.Ability.Skill1
+InputTag.Ability.Dodge
 Ability.Attack.Normal
 Ability.Skill.DashStrike
 State.Combat.Stunned
 State.Combat.Invincible
+Event.Death
+Gameplay.AbilityInputBlocked
 Data.Damage
 Data.Cost.Mana
+Profession.DragonFighter
 ```
+
+项目 Tag 集中声明在 `AbilitySystem/Core/DOGameplayTag.h`，不要手写 `FGameplayTag::RequestGameplayTag` 字符串。
 
 资产命名建议：
 
@@ -281,20 +287,25 @@ GAS 是 DragonOath 的核心战斗框架。
 - 消耗和简单动态数值可用 MMC 或 SetByCaller。
 - 视觉表现优先使用 GameplayCue。
 
-第一批 AttributeSet 建议：
+当前 AttributeSet：
 
 ```text
-CombatAttributeSet
+DOHealthSet
   Health
   MaxHealth
+  Damage
+  Healing
+
+DOPlaySet
   Mana
   MaxMana
-  Attack
-  Defense
-  CritRate
-  CritDamage
-  Damage
+  Stamina
+  MaxStamina
+  AttackPower
+  DefensePower
 ```
+
+后续属性拆分规划见 `Docs/06_Combat_Attribute_Design.md`。
 
 ## AI 规范
 

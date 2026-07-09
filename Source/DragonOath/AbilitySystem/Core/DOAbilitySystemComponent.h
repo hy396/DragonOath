@@ -6,8 +6,6 @@
 #include "AbilitySystemComponent.h"
 #include "DOAbilitySystemComponent.generated.h"
 
-class UDOGameplayAbility;
-
 /**
  * DragonOath 的 AbilitySystemComponent。
  *
@@ -25,7 +23,6 @@ public:
 	// 从 Actor 上查找项目 ASC。Pawn 没有直接持有时，UE 会通过 IAbilitySystemInterface 找到 PlayerState 上的 ASC。
 	static UDOAbilitySystemComponent* GetFromActor(const AActor* Actor, bool bLookForComponent = true);
 
-	virtual void InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor) override;
 	virtual void AbilitySpecInputPressed(FGameplayAbilitySpec& Spec) override;
 	virtual void AbilitySpecInputReleased(FGameplayAbilitySpec& Spec) override;
 

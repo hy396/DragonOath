@@ -387,7 +387,7 @@ Content/
 | 任务流程 | 脚本 |
 | 剧情对话 | 脚本 + 数据表 |
 | 活动规则 | 脚本 + C++ 校验 |
-| Boss AI 核心行为 | C++ / BehaviorTree |
+| Boss AI 核心行为 | C++ / StateTree |
 | Boss 阶段编排 | 脚本 / 数据 |
 | 网络复制 | C++ |
 | 反作弊敏感逻辑 | C++ |

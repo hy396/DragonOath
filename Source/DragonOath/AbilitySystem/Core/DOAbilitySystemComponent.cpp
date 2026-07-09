@@ -22,24 +22,6 @@ UDOAbilitySystemComponent* UDOAbilitySystemComponent::GetFromActor(const AActor*
 	return Cast<UDOAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Actor, bLookForComponent));
 }
 
-void UDOAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AActor* InAvatarActor)
-{
-	Super::InitAbilityActorInfo(InOwnerActor, InAvatarActor);
-
-	// ASC 放在 PlayerState 上，Avatar 会随着玩家 Possess 新 Pawn 而变化。
-	// 已授予的技能需要收到这个时机，才能处理 OnSpawn 这类依赖 Avatar 的逻辑。
-	if (InAvatarActor != nullptr)
-	{
-		for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
-		{
-			if (UDOGameplayAbility* DOAbility = Cast<UDOGameplayAbility>(AbilitySpec.Ability))
-			{
-				DOAbility->OnPawnAvatarSet();
-			}
-		}
-	}
-}
-
 void UDOAbilitySystemComponent::AbilitySpecInputPressed(FGameplayAbilitySpec& Spec)
 {
 	Super::AbilitySpecInputPressed(Spec);
@@ -83,6 +65,12 @@ void UDOAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 	ABILITYLIST_SCOPE_LOCK();
 	for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 	{
+		// Level <= 0 的技能尚未学习，不参与输入匹配，避免多余的激活尝试和失败日志。
+		if (AbilitySpec.Level <= 0)
+		{
+			continue;
+		}
+
 		if (DoesAbilitySpecMatchInputTag(AbilitySpec, InputTag))
 		{
 			InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
