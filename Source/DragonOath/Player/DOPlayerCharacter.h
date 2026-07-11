@@ -67,11 +67,15 @@ protected:
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
 
 	void Input_Move(const FInputActionValue& InputActionValue);
+	void Input_MoveStarted(const FInputActionValue& InputActionValue);
 	void Input_LookMouse(const FInputActionValue& InputActionValue);
 	void Input_LookStick(const FInputActionValue& InputActionValue);
 	void Input_Jump(const FInputActionValue& InputActionValue);
 	void Input_StopJumping(const FInputActionValue& InputActionValue);
 	void Input_Crouch(const FInputActionValue& InputActionValue);
+
+	// 冲刺技能激活（双击 A/D 触发）
+	void TryStartDash();
 
 protected:
 	// Setly/Lyra 风格的输入配置：GameplayTag 到 InputAction 的数据表式映射。
@@ -95,5 +99,10 @@ protected:
 	TArray<uint32> AbilityInputBindHandles;
 	bool bDefaultInputMappingsAdded = false;
 	bool bInputBindingsAdded = false;
+
+	// 双击检测（方向用于判断"同方向双击"，不传递给技能）
+	float LastMovePressTime = -1.0f;
+	float LastMovePressDirection = 0.0f;  // -1 = 左(A), 1 = 右(D)
+	static constexpr float DoubleTapThreshold = 0.25f;  // 双击间隔阈值（秒）
 
 };

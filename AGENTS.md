@@ -43,7 +43,7 @@ Source/DragonOath/
   AbilitySystem/
     Core/           DOAbilitySystemComponent, DOGameplayTag
     Abilities/      DOGameplayAbility 基类
-    Attributes/     DOHealthSet, DOPlaySet
+    Attributes/     DOHealthSet, DOResourceSet, DOCombatSet
     Pipeline/       GameplayEffectContext
   Characters/       DOCharacter 基类（玩家/怪物通用）
   Player/           DOPlayerState, DOPlayerCharacter, DOPlayerController
@@ -66,6 +66,73 @@ Source/DragonOath/
 - `EDOAbilityActivationPolicy`：`OnInputTriggered` / `WhileInputActive` / `OnSpawn`
 - ASC 输入流程：`AbilityInputTagPressed` -> 缓存 SpecHandle -> `ProcessAbilityInput` 统一激活
 - `AbilityInputTagPressed` 中已过滤 `Level <= 0` 的技能
+
+#### GameplayAbility 内置 Tag 容器（10 个）
+
+UGameplayAbility 内置 10 个 `FGameplayTagContainer`，按功能分为五大类：
+
+**一、技能自身标识标签**
+
+| 容器名 | 蓝图显示 | 作用 |
+|---|---|---|
+| `AbilityTags` | Asset Tags | 技能本身的身份标签，用于识别、筛选、查找技能资源 |
+
+**二、技能互斥/中断控制**
+
+| 容器名 | 蓝图显示 | 作用 |
+|---|---|---|
+| `CancelAbilitiesWithTag` | Cancel Abilities With Tag | 激活时强制取消其他正在运行的同类技能 |
+| `BlockAbilitiesWithTag` | Block Abilities With Tag | 激活期间禁止其他同类技能启动 |
+
+**三、角色自身释放校验**
+
+| 容器名 | 蓝图显示 | 作用 |
+|---|---|---|
+| `ActivationRequiredTags` | Activation Required Tags | 施法者 ASC 必须全部拥有这些标签才能释放（AND） |
+| `ActivationBlockedTags` | Activation Blocked Tags | 施法者 ASC 只要拥有任意一个标签就禁止释放（OR） |
+| `ActivationOwnedTags` | Activation Owned Tags | 技能激活时自动添加，结束时自动移除，默认网络同步 |
+
+**四、施法源（Source）附加校验**
+
+| 容器名 | 作用 |
+|---|---|
+| `SourceRequiredTags` | 施法源 ASC 必须全部持有这些标签才能释放 |
+| `SourceBlockedTags` | 施法源 ASC 只要持有任意一个标签就阻断释放 |
+
+**五、目标（Target）命中校验**
+
+| 容器名 | 作用 |
+|---|---|
+| `TargetRequiredTags` | 目标 ASC 必须全部持有这些标签，技能才能生效 |
+| `TargetBlockedTags` | 目标 ASC 只要持有任意一个标签，技能无法作用 |
+
+**判定执行顺序**：
+1. 校验 Source/Activation 释放条件
+2. 激活时执行 Cancel/Block 互斥逻辑
+3. 施加 ActivationOwnedTags
+4. 命中时校验 Target 标签
+
+**示例用法**：
+
+```cpp
+// 冲刺技能：激活期间自动添加 Dashing 标签
+ActivationOwnedTags.AddTag(DragonOathGameplayTags::Status::Dashing);
+
+// 冲刺中不能再冲刺
+ActivationBlockedTags.AddTag(DragonOathGameplayTags::Status::Dashing);
+
+// 冲刺激活时取消正在进行的攻击
+CancelAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Attack")));
+
+// 大招期间禁止冲刺
+BlockAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Move.Dash")));
+```
+
+**不要做的事**：
+
+- 不要手动用 GE 施加技能激活期间的临时状态标签，用 `ActivationOwnedTags`
+- 不要在 `CanActivateAbility` 中手动检查状态标签，用 `ActivationBlockedTags`
+- 不要手写 `FGameplayTag::RequestGameplayTag` 字符串，引用 `DOGameplayTag.h` 中的变量
 
 ### 输入系统
 

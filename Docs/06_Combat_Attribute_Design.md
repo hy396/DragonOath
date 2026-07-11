@@ -1,6 +1,6 @@
 # 06. Combat Attribute Design
 
-状态：基于龙斗士原游戏复刻设计，先评审，不直接实施代码。
+状态：基于龙斗士原游戏复刻设计，已通过技术评审，可按阶段实施。
 
 ## 原游戏概要
 
@@ -83,7 +83,7 @@ MaxStamina 的值固定或随角色等级成长，不通过一级属性转换。
 | 属性 | 英文 | 说明 |
 |---|---|---|
 | 暴击伤害倍率 | CritDamageRate | 暴击时伤害倍率，默认 1.5 |
-| 命中 | HitRating | 命中数值，换算为命中率 |
+| 命中 | HitRating | 命数值，换算为命中率 |
 | 闪避 | EvasionRating | 闪避数值，换算为闪避率 |
 | 攻击速度 | AttackSpeed | 影响攻击动画速度和技能前摇 |
 | 移动速度 | MoveSpeed | 影响角色移动速度 |
@@ -114,7 +114,68 @@ MaxStamina 的值固定或随角色等级成长，不通过一级属性转换。
 |---|---|---|
 | 元素抗性 | ElementResistance | 减少受到的元素伤害 |
 
+## 等级系统
+
+### 等级来源
+
+攻击者等级和防御者等级在伤害公式中频繁使用，需要统一获取方式：
+
+```text
+玩家等级：存在 ADOPlayerState 中，通过 ASC 的 AvatarActor -> PlayerState 获取
+怪物等级：存在 ADOCharacter 的成员变量中，由怪物数据表配置
+```
+
+ExecutionCalculation 中获取等级的统一接口：
+
+```cpp
+// 在 ExecutionCalculation 中
+const AActor* SourceActor = Spec.GetEffectContext().GetOriginalInstigator();
+// 玩家：Cast 到 APlayerState 或通过 AvatarActor -> PlayerState
+// 怪物：Cast 到 ADOCharacter 读取 Level 成员
+
+int32 GetAttackerLevel(const FGameplayEffectSpec& Spec) const
+{
+    if (const AActor* Avatar = Spec.GetEffectContext().GetInstigatorAbilitySystemComponent()->GetAvatarActor())
+    {
+        if (const APlayerState* PS = Cast<APlayerState>(Avatar->GetOwner()))
+        {
+            return PS->GetPlayerId(); // 或自定义 Level 字段
+        }
+        if (const ADOCharacter* Character = Cast<ADOCharacter>(Avatar))
+        {
+            return Character->GetCharacterLevel();
+        }
+    }
+    return 1; // 保底
+}
+```
+
+后续可以在 `UDOAbilitySystemComponent` 中提供 `GetCharacterLevel()` 辅助函数统一访问。
+
 ## 伤害公式
+
+### 技能参数传递
+
+技能的基础伤害和倍率通过 **SetByCaller** 传递给伤害 GE 的 ExecutionCalculation。
+
+SetByCaller Tag 定义（加入 `DOGameplayTag.h`）：
+
+```text
+Data.Damage             技能基础伤害
+Data.DamageMultiplier   技能伤害倍率
+```
+
+技能激活时创建伤害 GE 并设置 SetByCaller：
+
+```cpp
+// 在 GA 中创建伤害 GE
+FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(DamageGEClass, GetAbilityLevel(), ASC->MakeEffectContext());
+SpecHandle.Data->SetSetByCallerMagnitude(DragonOathGameplayTags::Data::Damage, SkillBaseDamage);
+SpecHandle.Data->SetSetByCallerMagnitude(DragonOathGameplayTags::Data::DamageMultiplier, SkillDamageMultiplier);
+ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+```
+
+ExecutionCalculation 中通过 `Spec.GetSetByCallerMagnitude(Tag)` 读取。
 
 ### 基础伤害
 
@@ -148,6 +209,8 @@ FinalDamage = FinalDamage * CritDamageRate
 
 默认 `CritDamageRate = 1.5`。
 
+UI 显示策略：面板上**显示换算后的暴击率百分比**（如 "33%"），后台用 Rating 计算。这样玩家理解直观，系统保留收益递减的数值深度。宠物守护的"致命守护"给的是 Rating 数值。
+
 示例（等级 10 时 CritScale = 300）：
 
 ```text
@@ -159,7 +222,17 @@ CriticalRating = 300 -> 暴击率约 50%
 
 ### 命中和闪避
 
-横版动作游戏里，玩家通过走位和技能范围决定是否命中。命中/闪避主要用于自动攻击、召唤物、怪物攻击。
+**设计原则**：横版动作游戏中，玩家通过走位和技能范围决定是否命中。命中/闪避主要用于自动攻击、召唤物、怪物攻击玩家。
+
+三种命中模式：
+
+```text
+1. 玩家攻击怪物：不走命中判定，必中（靠走位和技能范围决定）
+2. 怪物攻击玩家：走命中/闪避判定
+3. 自动战斗/召唤物：走命中/闪避判定
+```
+
+命中公式（仅模式 2、3 使用）：
 
 ```text
 FinalHitChance = Clamp(BaseHitChance + AttackerHitRating / HitScale - DefenderEvasionRating / EvasionScale, 0.05, 0.98)
@@ -171,6 +244,14 @@ FinalHitChance = Clamp(BaseHitChance + AttackerHitRating / HitScale - DefenderEv
 BaseHitChance = 0.90
 HitScale = 200 + AttackerLevel * 10
 EvasionScale = 200 + DefenderLevel * 10
+```
+
+ExecutionCalculation 中通过伤害 GE 的 `EffectContext` 或 `SetByCaller` 标记伤害来源类型，决定是否走命中判定。建议用 GameplayTag 区分：
+
+```text
+Damage.Type.Player       玩家造成的伤害，跳过命中判定
+Damage.Type.Monster      怪物造成的伤害，走命中判定
+Damage.Type.Pet          召唤物造成的伤害，走命中判定
 ```
 
 ### 元素伤害
@@ -190,6 +271,8 @@ ElementReduction = ElementResistance / (ElementResistance + ResistanceScale)
 
 其中 `ResistanceScale = 100 + DefenderLevel * 10`。
 
+**平衡限制**：元素攻击属性有上限约束，通过 GE 的 Modifier 上限或 PreAttributeChange Clamp 控制。建议单系元素攻击上限不超过 `AttackerLevel * 20`，避免无元素抗性的目标受到过高伤害。PVP 场景中可额外乘以 0.5 系数。
+
 ### 吸血
 
 ```text
@@ -201,35 +284,46 @@ Heal = FinalDamage * LifeStealRate
 ### 计算顺序
 
 ```text
-1. 读取攻击者 AttackPower 和技能基础伤害/倍率
-2. 计算基础伤害 = SkillBaseDamage + AttackPower
-3. 防御减免 = max(1, 基础伤害 - DefensePower)
-4. 命中判定（如果适用）
-5. 暴击判定，如果暴击乘以 CritDamageRate
-6. 元素伤害单独计算
-7. 最终伤害 = 基础伤害 + 元素伤害
-8. 吸血计算
+1. 读取攻击者 AttackPower 和技能基础伤害/倍率（SetByCaller）
+2. 判定伤害来源类型（玩家/怪物/召唤物）
+3. 命中判定（仅怪物/召唤物攻击走判定）
+4. 计算基础伤害 = SkillBaseDamage + AttackPower
+5. 防御减免 = max(1, 基础伤害 - DefensePower)
+6. 暴击判定，如果暴击乘以 CritDamageRate
+7. 元素伤害单独计算（不吃防御）
+8. 最终伤害 = 基础伤害 + 元素伤害
+9. 吸血计算
 ```
 
 ## 霸体与韧性
 
-原游戏的横版动作战斗中，霸体是重要的战斗机制。
+### 第一阶段：Tag 霸体
 
-第一阶段做法：
+原游戏的横版动作战斗中，霸体是重要的战斗机制。第一阶段只做简单的 Tag 霸体，不引入韧性系统：
 
 ```text
-Status.SuperArmor       当前处于霸体状态，用 GameplayTag 表示
-Poise / MaxPoise        韧性值，受到攻击时减少，归零后可被打断
+Status.SuperArmor    当前处于霸体状态，用 GameplayTag 表示
 ```
 
 各单位配置：
 
 ```text
-普通怪：没有霸体，少量韧性
+普通怪：没有霸体，受击即硬直
 精英怪：部分技能期间加 Status.SuperArmor
 Boss：阶段或技能期间加 Status.SuperArmor
 玩家：某些技能释放期间获得短霸体（如战士的战神之躯）
 ```
+
+受击逻辑中检查 `Status.SuperArmor`：有霸体的单位不进入硬直状态，但仍然承受伤害。
+
+### 第二阶段（后续单独设计）：韧性系统
+
+韧性（Poise）系统涉及更多设计细节，后续单独设计，不放在本文档中：
+
+- 韧性减少规则：每次受击减固定值？还是按伤害比例？
+- 韧性恢复规则：脱战后多久恢复？受击后多久开始恢复？
+- 韧性归零后的效果：进入硬直？硬直时长？
+- 霸体与韧性的关系：霸体期间韧性不减？还是霸体期间韧性归零才被打断？
 
 ## 玩家属性来源
 
@@ -303,16 +397,23 @@ Boss：阶段或技能期间加 Status.SuperArmor
 
 守护值取决于宠物自身的对应属性数值和星级。守护石可以进一步提升守护效果。
 
-GAS 实现方案：
+GAS 实现方案（使用 MMC 动态计算）：
+
+普通 GE 的 Modifier Magnitude 不支持运行时动态计算，使用自定义 **ModifierMagnitudeCalculation（MMC）** 实现宠物守护的动态属性加成：
 
 ```text
-每个宠物守护 GE 根据宠物属性动态计算 Modifier magnitude
-攻击守护 GE -> AttackPower
-防御守护 GE -> DefensePower
-生命守护 GE -> MaxHealth
-魔法守护 GE -> MaxMana
-致命守护 GE -> CriticalRating
+每个宠物守护类型对应一个 MMC：
+MMC_PetAttackGuard    读取宠物组件的攻击守护值，输出到 AttackPower Modifier
+MMC_PetDefenseGuard   读取宠物组件的防御守护值，输出到 DefensePower Modifier
+MMC_PetHealthGuard    读取宠物组件的生命守护值，输出到 MaxHealth Modifier
+MMC_PetManaGuard      读取宠物组件的魔法守护值，输出到 MaxMana Modifier
+MMC_PetCriticalGuard  读取宠物组件的致命守护值，输出到 CriticalRating Modifier
 ```
+
+MMC 优势：
+- 可以在 GE 配置中复用
+- 支持 CurveTable 做星级映射
+- 运行时读取宠物组件属性，宠物升级/换装自动生效
 
 ### 称号系统
 
@@ -371,25 +472,82 @@ Tags
 
 ### AttributeSet 规划
 
-当前代码：
+第二阶段已完成拆分，`DOPlaySet` 已解散，拆为 `DOResourceSet` + `DOCombatSet`：
 
 ```text
-DOHealthSet    Health / MaxHealth / Damage / Healing
-DOPlaySet      Mana / MaxMana / Stamina / MaxStamina / AttackPower / DefensePower
+DOHealthSet       Health / MaxHealth / Damage / Healing / HealthRegen（新增）
+DOResourceSet     Mana / MaxMana / Stamina / MaxStamina / ManaRegen（新增，承接自 DOPlaySet）
+DOCombatSet       AttackPower / DefensePower / MoveSpeed（迁移自 DOPlaySet）
+                  CriticalRating / CritDamageRate（新增）
+                  HitRating / EvasionRating（新增）
+                  AttackSpeed / LifeStealRate（新增）
 ```
 
-当前 DOPlaySet 已有 AttackPower / DefensePower，不需要改造。后续属性增多后拆为独立 AttributeSet：
+后续阶段结构（尚未实现）：
 
 ```text
-DOHealthSet       Health / MaxHealth / Damage / Healing / HealthRegen
-DOResourceSet     Mana / MaxMana / Stamina / MaxStamina / ManaRegen
-DOCombatSet       AttackPower / DefensePower
-                  CriticalRating / CritDamageRate / HitRating / EvasionRating
-                  AttackSpeed / MoveSpeed / LifeStealRate
 DOElementSet      FireAttack / LightningAttack / IceAttack / LightAttack / DarkAttack
                   ElementResistance
-DOPrimarySet      Strength / Agility / Intelligence（仅玩家）
+DOPrimarySet      Strength / Agility / Intelligence（仅玩家，Phase 3）
 ```
+
+注册方式：属性集作为 `CreateDefaultSubobject` 挂在 ASC 拥有者上，ASC 在 `InitAbilityActorInfo` 时自动发现并注册。
+
+- 玩家：属性集挂在 `ADOPlayerState`（玩家 ASC 的拥有者）上。
+- 怪物 / NPC：属性集挂在 `ADOCharacter` 自身（怪物 ASC 的拥有者）上，因此 `ADOCharacter` 构造函数同样创建这三个属性集；玩家 Pawn 继承该构造函数会产生冗余实例，但不会参与玩家 ASC 注册，无副作用。
+
+迁移引用清单（第二阶段已统一更新）：
+
+```text
+DOPlayerState.h/.cpp                 PlaySet -> ResourceSet + CombatSet，新增 GetResourceSet()/GetCombatSet()
+DOCharacter.cpp                      UDOPlaySet::GetMoveSpeedAttribute() -> UDOCombatSet::GetMoveSpeedAttribute()
+DOExecutionCalculation_Damage.cpp    AttackPower/DefensePower 捕获改为 UDOCombatSet
+ADOCharacter.cpp                     构造函数创建 HealthSet/ResourceSet/CombatSet 供怪物使用
+DOPlaySet.h/.cpp                     已删除
+```
+
+### 回复属性实现
+
+HealthRegen 和 ManaRegen 使用 **Periodic GE** 实现每秒回复：
+
+```text
+回复 GE 配置：
+Duration = Infinite（或按 Buff 时长）
+Period = 1.0s
+Modifier = +HealthRegen（或 +ManaRegen）的值，施加到 Healing（或直接 Health）
+
+实现方式：
+GE 每 1 秒触发一次，ExecutionCalculation 或 Modifier 读取 HealthRegen 属性值，
+作为治疗量施加。这样 HealthRegen 属性值变化时，回复量自动更新。
+```
+
+### 攻击速度实现
+
+AttackSpeed 影响攻击动画速度和技能前摇，通过 GA 基类辅助函数实现：
+
+```cpp
+// UDOGameplayAbility
+float GetAttackSpeed() const
+{
+    if (const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+    {
+        if (const UDOCombatSet* CombatSet = ASC->GetSet<UDOCombatSet>())
+        {
+            return CombatSet->GetAttackSpeed();
+        }
+    }
+    return 1.0f; // 保底
+}
+```
+
+子类在 PlayMontage 时设置 Rate：
+
+```cpp
+UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+    this, NAME_None, AttackMontage, GetAttackSpeed());
+```
+
+Phase 1 中 AttackSpeed 还没加入 AttributeSet，GetAttackSpeed 返回 1.0f，不影响现有技能。
 
 ### GameplayEffect 分层
 
@@ -399,7 +557,7 @@ DOPrimarySet      Strength / Agility / Intelligence（仅玩家）
 觉醒 GE          -> 觉醒后额外属性
 装备 GE          -> 攻击/防御等二级属性
 强化 GE          -> 装备属性百分比提升
-宠物守护 GE      -> 攻击/防御/生命/魔法/致命
+宠物守护 GE      -> 攻击/防御/生命/魔法/致命（MMC 动态计算）
 称号 GE          -> 全属性加成
 圣衣 GE          -> 固定属性加成
 技能被动 GE      -> 各类属性加成
@@ -461,15 +619,31 @@ MaxWalkSpeed = MoveSpeed 当前值
 ```text
 读取攻击者：AttackPower / CriticalRating / HitRating / ElementAttack
 读取目标：DefensePower / EvasionRating / ElementResistance
-计算：命中 -> 防御减免 -> 暴击 -> 元素伤害 -> 吸血
+读取 SetByCaller：SkillBaseDamage / SkillDamageMultiplier
+计算：命中判定 -> 防御减免 -> 暴击 -> 元素伤害 -> 吸血
 输出：Damage Meta Attribute
 ```
 
 ### 网络复制
 
-所有战斗属性使用 `ReplicatedUsing=OnRep_XXX` 同步。
+玩家 ASC 使用 `Mixed` 复制模式。Mixed 模式下，GameplayEffect 只复制给 Owner 客户端，非 Owner 客户端看不到 GE。但 AttributeSet 中的属性值通过 `ReplicatedUsing` 复制给所有客户端。
 
-一级属性（力量/敏捷/智力）仅服务端修改，客户端通过 OnRep 刷新 UI。
+属性可见性规划：
+
+```text
+所有客户端可见（ReplicatedUsing）：
+  Health / MaxHealth          血条需要所有人看到
+  Mana / MaxMana              法力条需要所有人看到
+  AttackPower / DefensePower  PVP 面板需要看到
+  MoveSpeed                   客户端预测移动需要
+  Stamina / MaxStamina        动作资源需要本地预测
+  CriticalRating / 等         PVP 面板需要看到
+  元素攻击/抗性               PVP 面板需要看到
+
+仅 Owner 可见（通过 GE 不复制实现）：
+  Strength / Agility / Intelligence  一级属性只影响 Owner 的 GE 计算
+  HealthRegen / ManaRegen            回复属性只影响 Owner 的 Periodic GE
+```
 
 伤害 Meta Attribute（Damage / Healing）不同步，只在服务端 PostGameplayEffectExecute 中处理。
 
@@ -477,54 +651,166 @@ MaxWalkSpeed = MoveSpeed 当前值
 
 ### 第一阶段：核心战斗闭环
 
-当前 DOPlaySet 已有 AttackPower / DefensePower，不需要改造：
+当前 DOPlaySet 已有 AttackPower / DefensePower，不需要改造。在 DOPlaySet 中新增 MoveSpeed 属性（不拆分，Phase 2 再拆）：
 
 ```text
 Health / MaxHealth / Damage / Healing
 Mana / MaxMana
+Stamina / MaxStamina
 AttackPower / DefensePower
+MoveSpeed（新增）
 ```
 
-完成基础伤害公式 ExecutionCalculation。
-
-### 第二阶段：进阶属性
-
-新增 DOCombatSet：
+实施内容：
 
 ```text
-CriticalRating / CritDamageRate
-HitRating / EvasionRating
-AttackSpeed / MoveSpeed
-LifeStealRate
-HealthRegen / ManaRegen
+1. DOPlaySet 新增 MoveSpeed 属性
+2. DOCharacter 实现 MoveSpeed delegate 绑定
+3. DOGameplayTag 新增 Data.Damage / Data.DamageMultiplier
+4. 创建 UDOExecutionCalculation_Damage 基础伤害公式
+5. UDOAbilitySystemComponent 新增 GetCharacterLevel() 辅助函数
+6. 创建测试用伤害 GE 蓝图
 ```
+
+### 第二阶段：进阶属性 + AttributeSet 拆分（已完成）
+
+目标：解散 `DOPlaySet`，拆为 `DOResourceSet` + `DOCombatSet`，补齐进阶战斗属性（暴击、命中、闪避、攻速、吸血）与回复属性，并扩展伤害结算。
+
+拆分后结构：
+
+```text
+DOHealthSet       Health / MaxHealth / Damage / Healing / HealthRegen（新增）
+DOResourceSet     Mana / MaxMana / Stamina / MaxStamina / ManaRegen（新增）
+DOCombatSet       AttackPower / DefensePower / MoveSpeed（迁移）
+                  CriticalRating / CritDamageRate（新增）
+                  HitRating / EvasionRating（新增）
+                  AttackSpeed / LifeStealRate（新增）
+```
+
+#### 属性集职责
+
+```cpp
+// DOResourceSet：资源与回复
+UCLASS()
+class UDOResourceSet : public UDOAttributeSet
+{
+    // Mana / MaxMana / Stamina / MaxStamina：复制、Clamp 同原 DOPlaySet
+    // ManaRegen：COND_OwnerOnly 复制，>= 0，仅被回复 Periodic GE 读取
+};
+
+// DOCombatSet：战斗输入与进阶战斗属性
+UCLASS()
+class UDOCombatSet : public UDOAttributeSet
+{
+    // AttackPower / DefensePower / CriticalRating / HitRating /
+    // EvasionRating / AttackSpeed / LifeStealRate：>= 0
+    // MoveSpeed：>= 1，通过 delegate 桥接 CharacterMovementComponent::MaxWalkSpeed
+    // CritDamageRate：>= 1，默认 1.5
+};
+```
+
+初始化默认值（仅作保底，最终值由 GE 叠加决定）：
+
+```text
+AttackPower = 10, DefensePower = 0, MoveSpeed = 500
+CriticalRating = 0, CritDamageRate = 1.5
+HitRating = 0, EvasionRating = 0
+AttackSpeed = 1.0, LifeStealRate = 0
+Mana = 100, MaxMana = 100, Stamina = 100, MaxStamina = 100, ManaRegen = 0
+```
+
+#### 迁移清单
+
+- `DOPlayerState`：`PlaySet` 拆为 `ResourceSet` + `CombatSet`，新增 `GetResourceSet()` / `GetCombatSet()`。
+- `DOCharacter`：`MoveSpeed` 属性迁移到 `DOCombatSet`，委托绑定改为 `UDOCombatSet::GetMoveSpeedAttribute()`。
+- `ADOCharacter` 构造函数同时创建 `HealthSet / ResourceSet / CombatSet` 三个属性集，使怪物（ASC 挂在自身）自动拥有完整属性；玩家 Pawn 的冗余实例不参与玩家 ASC 注册。
+- `DOExecutionCalculation_Damage`：AttackPower / DefensePower 改为从 `UDOCombatSet` 捕获。
+- 删除 `DOPlaySet.h / .cpp`。
+
+#### 新增 GameplayTag
+
+```text
+Damage.Type.Player    玩家伤害，跳过命中判定（必中）
+Damage.Type.Monster   怪物伤害，走命中/闪避判定
+Damage.Type.Pet       召唤物/宠物伤害，走命中/闪避判定
+Damage.CanLifeSteal   该次伤害触发吸血
+```
+
+这些 Tag 配置在伤害 GE 的 Source Tags 上，ExecutionCalculation 通过 `Spec.CapturedSourceTags` 读取。
+
+#### ExecutionCalculation 扩展（暴击 / 命中 / 闪避）
+
+```text
+读取：AttackPower/CriticalRating/CritDamageRate/HitRating（Source, UDOCombatSet）
+      DefensePower/EvasionRating（Target, UDOCombatSet）
+      AttackerLevel / DefenderLevel（AvatarActor -> ADOCharacter::GetCharacterLevel）
+      Damage.Type.*（Spec.CapturedSourceTags）
+
+1. 基础伤害：max(1, (SkillBaseDamage + AttackPower) - DefensePower) * SkillDamageMultiplier
+2. 命中判定（仅 Damage.Type.Monster / Damage.Type.Pet）：
+   FinalHitChance = Clamp(0.90 + HitRating/(200+Lv*10) - EvasionRating/(200+Lv*10), 0.05, 0.98)
+   未命中则 FinalDamage = 0
+3. 暴击判定：CritChance = CriticalRating / (CriticalRating + 200 + Lv*10)
+   命中阈值则 FinalDamage *= CritDamageRate
+4. 命中且 FinalDamage>0：输出 Damage Meta Attribute
+```
+
+> 吸血（LifeSteal）不放在 ExecutionCalculation 里：伤害 GE 施加在目标（受害者）上，
+> ExecutionCalculation 只能输出到目标属性，无法为来源回血（否则会错误地治疗受害者）。
+> 吸血改由 `UDOAbilitySystemComponent::ApplyDamageToTarget` 统一入口处理：伤害 GE 施加到目标后，
+> 若 SourceTags 含 `Damage.CanLifeSteal`，在服务端为来源按
+> `LifeStealRate * (SkillBaseDamage + AttackPower)` 估算回血（`UDOHealthSet::Healing` Meta 已就绪，可作精确回血 GE 的落点）。
+
+> 预测说明：暴击与命中的随机判定当前使用 `FMath::FRand()`。在 LocalPredicted 下，客户端预测值与服务端权威值可能短暂不一致，由 GAS 预测系统回滚修正。后续如需完全一致，可改为基于 SpecHandle + 帧号的确定性随机。
+
+#### 攻速辅助
+
+`UDOGameplayAbility::GetAttackSpeed()` 从 `UDOCombatSet` 读取 `AttackSpeed`，缺省返回 1.0f。子类的 `PlayMontageAndWait` 使用该值作为播放速率（Phase 1 中该函数已存在但恒返回 1.0f）。
+
+#### 回复属性（Periodic GE）
+
+- `HealthRegen`（DOHealthSet）/ `ManaRegen`（DOResourceSet）为普通复制属性。
+- 回复由 `GE_Regen_Health` / `GE_Regen_Mana` 实现：Duration = Infinite，Period = 1.0s，Modifier 读取对应 Regen 属性值，周期性施加到 Health / Mana。
+- 这两张 GE 为蓝图资产，C++ 侧只需保证属性与 `UDOHealthSet::PostGameplayEffectExecute` 的伤害/治疗转换就绪（Healing Meta 已在此处转换为生命回复）。
 
 ### 第三阶段：一级属性和成长
 
 新增 DOPrimarySet（仅玩家）：
 
 ```text
-Strength / Agility / Intelligence
+DOPrimarySet      Strength / Agility / Intelligence
 ```
 
-实现一级属性到二级属性的转换 GE。
+实施内容：
 
-实现职业基础属性和等级成长。
+```text
+1. 实现一级属性到二级属性的转换 GE（MMC 或 ExecutionCalculation）
+2. 实现职业基础属性和等级成长 GE
+3. PlayerState 新增等级字段
+```
 
 ### 第四阶段：元素系统
 
 新增 DOElementSet：
 
 ```text
-FireAttack / LightningAttack / IceAttack / LightAttack / DarkAttack
-ElementResistance
+DOElementSet      FireAttack / LightningAttack / IceAttack / LightAttack / DarkAttack
+                  ElementResistance
+```
+
+实施内容：
+
+```text
+1. 新建 DOElementSet
+2. 扩展 ExecutionCalculation 加入元素伤害计算
+3. 元素攻击属性上限 Clamp
 ```
 
 ### 第五阶段：成长系统
 
 ```text
 装备系统 GE（装备属性 + 强化等级）
-宠物守护神 GE（五项守护属性）
+宠物守护神 GE（五项守护属性，MMC 动态计算）
 称号系统 GE
 圣衣系统 GE
 觉醒系统 GE
@@ -555,10 +841,13 @@ Cost GE -> Mana -= SkillManaCost
 
 ```text
 统一攻击力和防御力，不区分物理/魔法
-致命从简单百分比改为数值型 Rating 系统
-补全宠物守护神作为核心成长系统
+致命从简单百分比改为数值型 Rating 系统（UI 显示百分比）
+补全宠物守护神作为核心成长系统（MMC 动态计算）
 装备强化 +1 到 +15 作为主要属性来源
 伤害公式回归简单减法，加保底机制
 一级属性为力量/敏捷/智力三项，体力改为独立动作资源
 新增攻击速度属性
+技能参数通过 SetByCaller 传递给 ExecutionCalculation
+玩家攻击必中，怪物/召唤物攻击走命中判定
+第一阶段只做 Tag 霸体，韧性系统后续单独设计
 ```

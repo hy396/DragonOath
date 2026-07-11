@@ -47,6 +47,11 @@ public:
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UDOHealthSet, MaxHealth)
 
+	/** 生命回复：每秒回复量。仅 Owner 复制，回复 Periodic GE 读取此值后施加治疗。 */
+	UPROPERTY(BlueprintReadOnly, Category="DO|Health", ReplicatedUsing=OnRep_HealthRegen)
+	FGameplayAttributeData HealthRegen;
+	ATTRIBUTE_ACCESSORS(UDOHealthSet, HealthRegen)
+
 	// 防止 Health 已经为 0 时重复广播死亡事件。
 	bool bOutOfHealth;
 
@@ -85,6 +90,9 @@ public:
 
 	UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
+
+	UFUNCTION()
+	void OnRep_HealthRegen(const FGameplayAttributeData& OldHealthRegen);
 
 	// ============================================================
 	// 属性变化钩子 —— 理解它们在网络中的执行时机非常关键

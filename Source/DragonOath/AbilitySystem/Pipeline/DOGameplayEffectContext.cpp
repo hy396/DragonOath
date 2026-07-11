@@ -31,7 +31,7 @@ bool FDOGameplayEffectContext::NetSerialize(FArchive& Ar, UPackageMap* Map, bool
 	{
 		// 序列化：构建位掩码
 		if (bIsCriticalHit)             RepBits |= 1 << 0;
-		if (bIsBlocked)                 RepBits |= 1 << 1;
+		if (bIsBlockedHit)              RepBits |= 1 << 1;
 		if (HitBoneName != NAME_None)   RepBits |= 1 << 2;
 		if (!DamageDirection.IsZero())  RepBits |= 1 << 3;
 		if (DamageElementTag.IsValid()) RepBits |= 1 << 4;
@@ -50,7 +50,7 @@ bool FDOGameplayEffectContext::NetSerialize(FArchive& Ar, UPackageMap* Map, bool
 
 	if (RepBits & (1 << 1))
 	{
-		Ar << bIsBlocked;
+		Ar << bIsBlockedHit;
 	}
 
 	if (RepBits & (1 << 2))

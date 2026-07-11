@@ -48,6 +48,11 @@ public:
 	UFUNCTION(BlueprintPure, Category="DO|Ability")
 	EDOAbilityActivationPolicy GetActivationPolicy() const { return ActivationPolicy; }
 
+	// 读取当前攻速（来自 UDOCombatSet::AttackSpeed），子类 PlayMontage 时作为播放速率。
+	// 缺省返回 1.0f，避免属性集缺失时影响现有技能。
+	UFUNCTION(BlueprintPure, Category="DO|Ability")
+	float GetAttackSpeed() const;
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="DO|Ability")
 	EDOAbilityActivationPolicy ActivationPolicy = EDOAbilityActivationPolicy::OnInputTriggered;

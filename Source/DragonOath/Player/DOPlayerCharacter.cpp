@@ -45,6 +45,9 @@ void ADOPlayerCharacter::InitializeAbilitySystem()
 	}
 
 	InitializeAbilitySystemComponent(DOPlayerState->GetDOAbilitySystemComponent(), DOPlayerState);
+
+	// ASC 初始化后，服务端授予职业技能
+	DOPlayerState->GrantProfessionAbilities();
 }
 
 void ADOPlayerCharacter::OnRep_PlayerState()
@@ -90,6 +93,8 @@ void ADOPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 	// NativeInputActions 处理角色本身的输入；AbilityInputActions 只透传给 ASC。
 	LyraIC->BindNativeAction(InputConfig, LyraGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Input_Move, /*bLogIfNotFound=*/ false);
+	// 新增 Started 绑定（检测双击冲刺）
+	LyraIC->BindNativeAction(InputConfig, LyraGameplayTags::InputTag_Move, ETriggerEvent::Started, this, &ThisClass::Input_MoveStarted, /*bLogIfNotFound=*/ false);
 	// LyraIC->BindNativeAction(InputConfig, LyraGameplayTags::InputTag_Look_Mouse, ETriggerEvent::Triggered, this, &ThisClass::Input_LookMouse, /*bLogIfNotFound=*/ false);
 	// LyraIC->BindNativeAction(InputConfig, LyraGameplayTags::InputTag_Look_Stick, ETriggerEvent::Triggered, this, &ThisClass::Input_LookStick, /*bLogIfNotFound=*/ false);
 	LyraIC->BindNativeAction(InputConfig, DragonOathGameplayTags::InputTag::Jump, ETriggerEvent::Started, this, &ThisClass::Input_Jump, /*bLogIfNotFound=*/ false);
@@ -261,4 +266,58 @@ void ADOPlayerCharacter::Input_Crouch(const FInputActionValue& /*InputActionValu
 	{
 		Crouch();
 	}
+}
+
+void ADOPlayerCharacter::Input_MoveStarted(const FInputActionValue& InputActionValue)
+{
+	const FVector2D Value = InputActionValue.Get<FVector2D>();
+
+	// 只检测横向输入（A/D），忽略纯纵向（W/S）
+	if (FMath::Abs(Value.X) < KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	const float CurrentDirection = FMath::Sign(Value.X);
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const float CurrentTime = World->GetTimeSeconds();
+
+	// 同方向连续两次按下，且间隔在阈值内
+	if (CurrentDirection == LastMovePressDirection
+		&& LastMovePressTime > 0.0f
+		&& (CurrentTime - LastMovePressTime) <= DoubleTapThreshold)
+	{
+		// 触发冲刺（方向由技能内部通过角色朝向获取）
+		TryStartDash();
+
+		// 重置检测状态，避免三连击重复触发
+		LastMovePressTime = -1.0f;
+		LastMovePressDirection = 0.0f;
+	}
+	else
+	{
+		LastMovePressTime = CurrentTime;
+		LastMovePressDirection = CurrentDirection;
+	}
+}
+
+void ADOPlayerCharacter::TryStartDash()
+{
+	UDOAbilitySystemComponent* DOASC = GetDOAbilitySystemComponent();
+	if (!DOASC)
+	{
+		return;
+	}
+
+	// 通过 Tag 查找冲刺技能并激活
+	// 冲刺技能的 AbilityTags 中应包含 Ability.Movement.Dash
+	FGameplayTagContainer DashTags;
+	DashTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Movement.Dash")));
+
+	DOASC->TryActivateAbilitiesByTag(DashTags);
 }

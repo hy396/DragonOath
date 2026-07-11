@@ -93,8 +93,6 @@ Source/DragonOath/
     HUD/
     Screens/
     Widgets/
-  VFX/
-  Tests/
 ```
 
 目录使用原则：

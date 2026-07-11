@@ -151,10 +151,12 @@ struct FDragonOathTriggerAbilityTask : public FStateTreeTaskCommonBase
 
 ```cpp
 // C++ 侧：受到伤害时发送 StateTree Event
+// 注意：项目规范禁止手写 FGameplayTag::RequestGameplayTag 字符串，
+//      应引用 DOGameplayTag.h 中声明的变量（此处用 DragonOathGameplayTags::Event::StateTreeDamaged 示意）。
 void AEnemyCharacter::OnDamaged(float Damage, AActor* Instigator)
 {
     FStateTreeEvent Event;
-    Event.Tag = FGameplayTag::RequestGameplayTag("StateTree.Event.Damaged");
+    Event.Tag = DragonOathGameplayTags::Event::StateTreeDamaged;   // 不要写 RequestGameplayTag("...")
     Event.Payload = FInstancedStruct::Make(FDamagedPayload{ Damage, Instigator });
 
     StateTreeComponent->SendStateTreeEvent(Event);
@@ -162,7 +164,7 @@ void AEnemyCharacter::OnDamaged(float Damage, AActor* Instigator)
 ```
 
 StateTree 中：
-- Transition: Any State → Stun [Condition: OnEvent("StateTree.Event.Damaged") && Health > 0]
+- Transition: Any State → Stun [Condition: OnEvent(对应 Tag) && Health > 0]
 - Transition: Any State → Dead [Condition: OnEvent("StateTree.Event.Damaged") && Health <= 0]
 
 ## 步骤 5：行为复用（Linked Asset）

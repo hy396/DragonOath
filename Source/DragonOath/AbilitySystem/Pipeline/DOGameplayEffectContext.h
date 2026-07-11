@@ -25,7 +25,6 @@
  * │    - 命中了哪个骨骼/部位？                                    │
  * │    - 伤害元素类型（火/冰/雷）                                 │
  * │    - 弹道方向（用于击退计算）                                 │
- * │    - 武器信息                                                │
  * │    - 是否是背刺？                                            │
  * │                                                              │
  * │  这些数据需要从GA一路传递到：                                 │
@@ -43,50 +42,49 @@
  * 【设置步骤】
  * 1. 继承 FGameplayEffectContext（本文件）
  * 2. 继承 UAbilitySystemGlobals，重写 AllocGameplayEffectContext()
- * 3. 在 DefaultGame.ini 中指定自定义 Globals 类
+ *    （DragonOath 对应 UDOAbilitySystemGlobals，已在 Core 中完成注册）
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FDOGameplayEffectContext : public FGameplayEffectContext
 {
-	GENERATED_USTRUCT_BODY()
+	GENERATED_BODY()
 
 public:
-
 	FDOGameplayEffectContext()
 		: FGameplayEffectContext()
 	{
 	}
 
 	// ============================================================
-	// 自定义数据字段
+	// 自定义数据字段访问接口（命名规范对齐 Aura：IsXxx / SetIsXxx(const bool bInXxx)）
 	// ============================================================
 
 	/** 是否暴击 */
 	bool IsCriticalHit() const { return bIsCriticalHit; }
-	void SetIsCriticalHit(bool bCrit) { bIsCriticalHit = bCrit; }
+	void SetIsCriticalHit(const bool bInIsCriticalHit) { bIsCriticalHit = bInIsCriticalHit; }
 
-	/** 是否格挡 */
-	bool IsBlocked() const { return bIsBlocked; }
-	void SetIsBlocked(bool bBlock) { bIsBlocked = bBlock; }
+	/** 是否格挡命中 */
+	bool IsBlockedHit() const { return bIsBlockedHit; }
+	void SetIsBlockedHit(const bool bInIsBlockedHit) { bIsBlockedHit = bInIsBlockedHit; }
 
 	/** 命中骨骼名（用于部位伤害） */
 	FName GetHitBoneName() const { return HitBoneName; }
-	void SetHitBoneName(FName Bone) { HitBoneName = Bone; }
+	void SetHitBoneName(const FName& InBoneName) { HitBoneName = InBoneName; }
 
 	/** 伤害方向（用于击退/受击动画方向） */
 	FVector GetDamageDirection() const { return DamageDirection; }
-	void SetDamageDirection(const FVector& Dir) { DamageDirection = Dir; }
+	void SetDamageDirection(const FVector& InDamageDirection) { DamageDirection = InDamageDirection; }
 
 	/** 伤害元素类型Tag */
 	FGameplayTag GetDamageElementTag() const { return DamageElementTag; }
-	void SetDamageElementTag(FGameplayTag Tag) { DamageElementTag = Tag; }
+	void SetDamageElementTag(const FGameplayTag& InDamageElementTag) { DamageElementTag = InDamageElementTag; }
 
 	/** 伤害倍率（部位伤害：爆头2x、身体1x、四肢0.5x） */
 	float GetDamageMultiplier() const { return DamageMultiplier; }
-	void SetDamageMultiplier(float Mult) { DamageMultiplier = Mult; }
+	void SetDamageMultiplier(const float InDamageMultiplier) { DamageMultiplier = InDamageMultiplier; }
 
 	// ============================================================
-	// 必须重写的虚函数
+	// 必须重写的虚函数（与 Aura 规范一致）
 	// ============================================================
 
 	/**
@@ -96,6 +94,7 @@ public:
 	virtual UScriptStruct* GetScriptStruct() const override
 	{
 		return FDOGameplayEffectContext::StaticStruct();
+		// return StaticStruct();
 	}
 
 	/**
@@ -106,7 +105,7 @@ public:
 	virtual FDOGameplayEffectContext* Duplicate() const override
 	{
 		FDOGameplayEffectContext* NewContext = new FDOGameplayEffectContext();
-		*NewContext = *this;  // 浅拷贝所有字段
+		*NewContext = *this;  // WithCopy = true，允许通过赋值拷贝全部字段
 		// 深拷贝 HitResult（父类的指针成员）
 		if (GetHitResult())
 		{
@@ -131,9 +130,9 @@ protected:
 	UPROPERTY()
 	bool bIsCriticalHit = false;
 
-	/** 是否被格挡 */
+	/** 是否格挡命中 */
 	UPROPERTY()
-	bool bIsBlocked = false;
+	bool bIsBlockedHit = false;
 
 	/** 命中骨骼名 */
 	UPROPERTY()

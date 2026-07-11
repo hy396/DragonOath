@@ -2,6 +2,7 @@
 
 #include "AbilitySystem/Abilities/DOGameplayAbility.h"
 
+#include "AbilitySystem/Attributes/DOCombatSet.h"
 #include "AbilitySystemComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOGameplayAbility)
@@ -14,6 +15,18 @@ UDOGameplayAbility::UDOGameplayAbility(const FObjectInitializer& ObjectInitializ
 
 	// 玩家操作类技能优先本地预测，服务端仍会做最终裁决。
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+}
+
+float UDOGameplayAbility::GetAttackSpeed() const
+{
+	if (const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+	{
+		if (const UDOCombatSet* CombatSet = ASC->GetSet<UDOCombatSet>())
+		{
+			return CombatSet->GetAttackSpeed();
+		}
+	}
+	return 1.0f; // 保底
 }
 
 bool UDOGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const
