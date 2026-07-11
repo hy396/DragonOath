@@ -42,7 +42,12 @@
 Source/DragonOath/
   AbilitySystem/
     Core/           DOAbilitySystemComponent, DOGameplayTag
-    Abilities/      DOGameplayAbility 基类
+    Abilities/
+      Core/         技能基类与配置资产：DOGameplayAbility、DOAbilitySet、DOProfessionAbilityConfig
+      Common/       全职业通用基础动作：普攻、冲刺/闪避、闪避攻击
+      Combat/       职业专属主动战斗技能（战技、大招）——规划中
+      Buff/         辅助技能：增益/治疗/护盾（pose + VFX + GE）——规划中
+      Passive/      被动技能——规划中
     Attributes/     DOHealthSet, DOResourceSet, DOCombatSet
     Pipeline/       GameplayEffectContext
   Characters/       DOCharacter 基类（玩家/怪物通用）
@@ -50,6 +55,18 @@ Source/DragonOath/
 ```
 
 不使用顶层 `Public/Private`，按功能域组织（Lyra 风格）。详见 `Docs/01_Development_Standards.md`。
+
+### Abilities 分类约定
+
+`AbilitySystem/Abilities/` 下按"是否绑定职业 + 功能类型"分子目录：
+
+- `Core/`：技能基类与配置资产（`DOGameplayAbility`、`DOAbilitySet`、`DOProfessionAbilityConfig`），不参与具体技能分类。
+- `Common/`：全职业通用基础动作套件（普攻、冲刺/闪避、闪避攻击）。判定标准：每个职业都有、逻辑通用。
+- `Combat/`：职业专属主动战斗技能（战技、大招）。判定标准：某职业专属、有独特机制。
+- `Buff/`：辅助技能（增益/治疗/护盾），通常只是摆 pose + 特效 + GE，无弹道/命中逻辑。
+- `Passive/`：被动技能，靠 `ActivationOwnedTags` + 常驻 GE，无激活流程。
+
+`Common` 与 `Combat` 的区分维度是"是否绑定职业"，不是"是否战斗"——普攻虽是战斗动作但人人都有，故归 `Common`。`Combat/`、`Buff/`、`Passive/` 目前为空，待首个对应技能创建时再建目录。
 
 ## 关键架构约定
 

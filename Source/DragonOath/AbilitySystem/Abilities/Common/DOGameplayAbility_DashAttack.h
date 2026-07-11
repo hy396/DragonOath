@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AbilitySystem/Abilities/DOGameplayAbility.h"
+#include "AbilitySystem/Abilities/Core/DOGameplayAbility.h"
 #include "DOGameplayAbility_DashAttack.generated.h"
 
 class UAnimMontage;

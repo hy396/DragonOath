@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AbilitySystem/Abilities/DOGameplayAbility_Dash.h"
+#include "AbilitySystem/Abilities/Common/DOGameplayAbility_Dash.h"
 
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_ApplyRootMotionConstantForce.h"

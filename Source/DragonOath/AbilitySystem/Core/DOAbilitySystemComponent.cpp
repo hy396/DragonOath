@@ -2,8 +2,8 @@
 
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 
-#include "AbilitySystem/Abilities/DOGameplayAbility.h"
-#include "AbilitySystem/Abilities/DOAbilitySet.h"
+#include "AbilitySystem/Abilities/Core/DOGameplayAbility.h"
+#include "AbilitySystem/Abilities/Core/DOAbilitySet.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
 #include "Characters/DOCharacter.h"
 #include "AbilitySystemGlobals.h"

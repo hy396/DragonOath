@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AbilitySystem/Abilities/DOGameplayAbility.h"
+#include "AbilitySystem/Abilities/Core/DOGameplayAbility.h"
 
 #include "AbilitySystem/Attributes/DOCombatSet.h"
 #include "AbilitySystemComponent.h"

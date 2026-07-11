@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AbilitySystem/Abilities/DOGameplayAbility_NormalAttack.h"
+#include "AbilitySystem/Abilities/Common/DOGameplayAbility_NormalAttack.h"
 
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"

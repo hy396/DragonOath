@@ -1,7 +1,7 @@
 #include "Player/DOPlayerState.h"
 
-#include "AbilitySystem/Abilities/DOAbilitySet.h"
-#include "AbilitySystem/Abilities/DOProfessionAbilityConfig.h"
+#include "AbilitySystem/Abilities/Core/DOAbilitySet.h"
+#include "AbilitySystem/Abilities/Core/DOProfessionAbilityConfig.h"
 #include "AbilitySystem/Attributes/DOHealthSet.h"
 #include "AbilitySystem/Attributes/DOResourceSet.h"
 #include "AbilitySystem/Attributes/DOCombatSet.h"

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystem/Abilities/DOAbilitySet.h"
+#include "AbilitySystem/Abilities/Core/DOAbilitySet.h"
 #include "DOAbilitySystemComponent.generated.h"
 
 class UDOAbilitySet;
