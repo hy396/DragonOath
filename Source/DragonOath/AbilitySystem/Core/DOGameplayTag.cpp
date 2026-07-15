@@ -35,6 +35,7 @@ namespace DragonOathGameplayTags
 	namespace InputTag
 	{
 		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Jump, "InputTag.Jump", "DragonOath 玩家角色使用的原生跳跃输入。");
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Dash, "InputTag.Dash", "双击 A/D 触发冲刺的输入标签，由增强输入 UInputTriggerDoubleTap 触发。");
 
 		namespace Ability
 		{

@@ -55,6 +55,10 @@ public:
 	// 服务端授予职业技能。需要在 ASC 初始化后调用（由 ADOPlayerCharacter::InitializeAbilitySystem 触发）。
 	void GrantProfessionAbilities();
 
+	// 确保职业已就绪：未设定则按兜底来源设定并授予，已设定则保证技能已授予。
+	// 由 ADOPlayerCharacter::InitializeAbilitySystem 在服务器侧调用。
+	void EnsureProfessionSet();
+
 protected:
 	// 职业变更时的客户端回调（更新 UI 等）
 	UFUNCTION()
@@ -84,6 +88,10 @@ private:
 	// 职业技能总配置（DA_ProfessionAbilityConfig 资产）
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UDOProfessionAbilityConfig> ProfessionAbilityConfig;
+
+	// 兜底职业来源。原型期默认值；后续接存档/Loadout/选人流程时可替换来源。
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", Categories = "Profession"))
+	FGameplayTag DefaultProfessionTag;
 
 	// 服务端标记，防止重复授予
 	bool bProfessionAbilitiesGranted = false;

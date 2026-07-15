@@ -200,6 +200,24 @@ BlockAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Move
 7. **GameplayTag 注释用中文**，`UE_DEFINE_GAMEPLAY_TAG_COMMENT` 第三个参数是注释
 8. **代码注释用中文**，文档正文用中文，文档标题用英文编号
 
+## 蓝图待办同步
+
+C++ 侧改动完成后，需要在编辑器里跟进的蓝图/资产配置统一记录在 `Docs/蓝图需要做的事情/` 目录下，按"功能改造_蓝图待办.md"命名。**AGENTS.md 仅保留索引与核心任务镜像，详细步骤以该目录文件为准。**
+
+- 当前待办文件：`Docs/蓝图需要做的事情/冲刺双击改造_蓝图待办.md`
+- 同步规则：当 C++ 完成某项任务（如新增 InputTag、删除手写逻辑），若涉及 `.uasset` 配置，须在 `Docs/蓝图需要做的事情/` 新增/更新对应待办，并将任务项镜像到本节的"当前待办任务"中，保持描述一致。
+
+### 当前待办任务（冲刺双击增强输入改造）
+
+> 说明：UE 5.8 无 `UInputTriggerDoubleTap`，双动用 **`UInputTriggerRepeatedTap`**（`NumberOfTapsWhichTriggerRepeat = 2`，`RepeatDelay = 0.25`）。
+
+1. 新建 `IA_Dash`（`Digital(bool)` + `Repeated Tap` 触发器，`RepeatDelay = 0.25`）
+2. `IMC_Default`：保留 `A/D → IA_Move`，新增 `A → IA_Dash`、`D → IA_Dash`
+3. `DA_InputConfig`：`AbilityInputActions` 新增 `IA_Dash → InputTag.Dash`
+4. `GA_Dash` 授予配置（`FDOAbilityGrant.InputTag`）设为 `InputTag.Dash`
+
+C++ 已完成：`DOGameplayTag` 新增 `InputTag::Dash`；`DOPlayerCharacter` 删除手写双击逻辑。详细步骤见上述待办文件。
+
 ## Spec Kit
 
 <!-- SPECKIT START -->

@@ -64,6 +64,9 @@ namespace DragonOathGameplayTags
 	{
 		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Jump);
 
+		// 双击 A/D 触发的冲刺输入
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Dash);
+
 		// 技能输入槽位
 		namespace Ability
 		{

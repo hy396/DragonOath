@@ -120,6 +120,31 @@ void ADOPlayerState::GrantProfessionAbilities()
 	UE_LOG(LogDragonOath, Log, TEXT("Granted profession abilities for %s."), *ProfessionTag.ToString());
 }
 
+void ADOPlayerState::EnsureProfessionSet()
+{
+	if (!HasAuthority())
+	{
+		// 客户端走的 InitializeAbilitySystem 也会进到这里，
+		// 但能力由服务器经 Mixed 复制下发，不在此处授予。
+		return;
+	}
+
+	if (!ProfessionTag.IsValid())
+	{
+		// 职业未设定：用兜底来源补上并授予技能
+		const FGameplayTag Def = DefaultProfessionTag.IsValid()
+			? DefaultProfessionTag
+			: DragonOathGameplayTags::Profession::DragonFighter;
+		SetProfession(Def);
+	}
+	else
+	{
+		// 职业已在（如重生存场景 ProfessionTag 随 PlayerState 保留），
+		// 仅保证技能已授予，避免重复。
+		GrantProfessionAbilities();
+	}
+}
+
 void ADOPlayerState::OnRep_ProfessionTag()
 {
 	// 客户端可以在这里更新 UI、切换角色外观等
