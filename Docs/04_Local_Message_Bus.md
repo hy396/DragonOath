@@ -103,36 +103,58 @@ Message.Debug.Network.StateChanged
 
 ## Payload 规范
 
-Payload 必须是明确的 `USTRUCT(BlueprintType)`。
-
-示例：
+DragonOath 采用 **Lyra 风格的「通用币」** —— 默认 Payload 是 `FDOVerbMessage`（来源 Lyra `FLyraVerbMessage`，移植版见 `Source/DragonOath/Messages/`），靠 `Verb` GameplayTag 区分事件类型。**不**为每种事件各写一个 struct。
 
 ```cpp
 USTRUCT(BlueprintType)
-struct FDOCombatDamageMessage
+struct FDOVerbMessage
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly)
-    TObjectPtr<AActor> SourceActor = nullptr;
-
-    UPROPERTY(BlueprintReadOnly)
-    TObjectPtr<AActor> TargetActor = nullptr;
-
-    UPROPERTY(BlueprintReadOnly)
-    float Damage = 0.0f;
-
-    UPROPERTY(BlueprintReadOnly)
-    bool bCritical = false;
+    UPROPERTY(BlueprintReadWrite) FGameplayTag Verb;              // 谓语 / 事件类型 / 订阅频道
+    UPROPERTY(BlueprintReadWrite) TObjectPtr<UObject> Instigator; // 主语 / 来源
+    UPROPERTY(BlueprintReadWrite) TObjectPtr<UObject> Target;     // 宾语 / 目标
+    UPROPERTY(BlueprintReadWrite) FGameplayTagContainer InstigatorTags;
+    UPROPERTY(BlueprintReadWrite) FGameplayTagContainer TargetTags;
+    UPROPERTY(BlueprintReadWrite) FGameplayTagContainer ContextTags;
+    UPROPERTY(BlueprintReadWrite) double Magnitude = 1.0;         // 补语 / 数值大小
 };
 ```
 
-规则：
+### 何时用 `FDOVerbMessage` vs `FDONotificationMessage` vs 自定义 struct
 
-- Payload 只描述“已经发生的事实”，不承载“请求服务器做某事”。
+| 场景 | 推荐 Payload |
+|---|---|
+| 伤害 / 击杀 / 助攻 / 重置 等「事件结构同构」的战斗事件 | **`FDOVerbMessage`**（靠 `Verb` 区分） |
+| UI 通知流（FText 文案 + TargetPlayer + TargetChannel） | **`FDONotificationMessage`**（见 `Messages/DONotificationMessage.h`） |
+| 极特殊的、带专属字段的事件（例如技能等级变化同时携带技能 tag + 旧/新等级） | 自定义 struct（少数例外） |
+
+`FDOVerbMessage` 与 `FDONotificationMessage` 是「通用币 + 专门通知」二分，**不**要混用：通知里不出现 `Verb` 谓语，战斗事件里不出现 `FText` 文案。
+
+### 通用币订阅示例
+
+```cpp
+// 发布方（GAS 计算伤害后）
+FDOVerbMessage Msg;
+Msg.Verb       = DragonOathGameplayTags::Message::Combat::DamageApplied;
+Msg.Instigator = SourcePawn;
+Msg.Target     = TargetPawn;
+Msg.Magnitude  = 42.0;
+UGameplayMessageSubsystem::Get(this).BroadcastMessage(Msg.Verb, Msg);
+
+// 订阅方（UI 伤害数字 / HUD 监听器）
+UGameplayMessageSubsystem::Get(this).RegisterListener<FDOVerbMessage>(
+    DragonOathGameplayTags::Message::Combat::DamageApplied,
+    this, &UMyDamageHUD::OnDamage);
+```
+
+### Payload 通用规则
+
+- Payload 只描述「已经发生的事实」，不承载「请求服务器做某事」。
 - 不把大对象、复杂容器、临时指针长期保存进 Payload。
 - 蓝图收到 Payload 后可以拷贝字段，但不要跨帧保存内部指针。
 - 高频连续数值不要每帧广播，使用属性绑定、复制属性或专门组件。
+- UI 通知场景要走 `FDONotificationMessage`，不把 `FText` 塞进 `FDOVerbMessage`。
 
 ## 项目推荐流程
 
@@ -141,9 +163,19 @@ struct FDOCombatDamageMessage
 ```text
 服务器计算伤害
   -> Health 复制 / GameplayCue 到客户端
-  -> 客户端生成 FDOCombatDamageMessage
-  -> Broadcast Message.Combat.Damage.Applied
+  -> 客户端生成 FDOVerbMessage（Verb=Message.Combat.Damage.Applied）
+  -> BroadcastMessage(Message.Combat.Damage.Applied, Msg)
   -> Niagara 伤害数字系统监听并表现
+```
+
+击杀提示流（UI 通知）：
+
+```text
+服务器确认击杀
+  -> replicated PlayerState 复制
+  -> 客户端生成 FDONotificationMessage（TargetChannel=Message.UI.Notification.Added）
+  -> BroadcastMessage(Message.UI.Notification.Added, NMsg)
+  -> 击杀流 Widget 监听并展示
 ```
 
 技能栏：
@@ -178,6 +210,8 @@ UI Widget 建议在 `NativeConstruct` 注册，在 `NativeDestruct` 反注册。
 
 Actor / Component 建议在 `BeginPlay` 注册，在 `EndPlay` 反注册。
 
+更推荐的做法：继承 `UGameplayMessageProcessor` 基类（见 `Source/DragonOath/Messages/GameplayMessageProcessor.h`）。子类重写 `StartListening()` / `StopListening()`，在 `StartListening()` 里调用 `AddListenerHandle(Bus.RegisterListener<...>(...))`，基类会在 `EndPlay` 时统一遍历 handle 兜底反注册 —— 防止 GC 后 lambda 仍触发野回调。
+
 ## 与其他系统的关系
 
 ```text
@@ -196,3 +230,24 @@ GameplayMessageRouter
   -> 解耦表现层和系统层
   -> 不替代网络复制
 ```
+
+## 跨网：FDOVerbMessageReplication
+
+GameplayMessageRouter 本身不负责网络（见顶部「联机边界」）。需要把 `FDOVerbMessage` 跨客户端同步时，使用 `FDOVerbMessageReplication`（见 `Source/DragonOath/Messages/DOVerbMessageReplication.h`）—— 这是 `FFastArraySerializer` 增量复制容器：
+
+```text
+服务端权威逻辑（如伤害计算）
+  -> GAS / ExecutionCalculation 算出伤害
+  -> 服务端调用 MsgReplication.AddMessage(Msg)   ← 服务端本地无订阅也无所谓
+  -> FastArray 增量复制到所有客户端
+  -> 客户端 PostReplicatedAdd → RebroadcastMessage
+  -> 客户端本地 UGameplayMessageSubsystem.BroadcastMessage(Msg.Verb, Msg)
+  -> 客户端 UI / Niagara / 处理器订阅方触发
+```
+
+要点：
+
+- `FDOVerbMessageReplication` 与 PlayerState 上的 `ClientBroadcastMessage` RPC 是**两条独立**穿网路径，FastArray 适合"事件记录型"消息（伤害 / 击杀），RPC 适合"轻量通知"。
+- 宿主 Actor 必须 `SetOwner(this)`，否则 `RebroadcastMessage` 里 `check(Owner)` 崩。
+- 复制字段需 `UPROPERTY(Replicated)`，且宿主 Actor 的 `GetLifetimeReplicatedProps` 里加 `DOREPLIFETIME(Class, MsgReplication)`。
+- 它**不**替代 GAS / 复制属性 / RPC，仅作为「事件记录的另一种穿网选择」存在；不需要时可完全忽略。
