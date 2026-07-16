@@ -12,13 +12,15 @@ public class DragonOath : ModuleRules
 		PublicIncludePaths.Add(ModuleDirectory);
 
 		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core", "CoreUObject", "Engine", 
+			"Core", "CoreUObject", "Engine",
 			"InputCore", "EnhancedInput",
 			"AIModule", "StateTreeModule", "GameplayStateTreeModule",
 			"UMG", "Slate", "SlateCore",
 			"GameplayAbilities", "GameplayTags", "GameplayTasks",
+			"GameplayMessageRuntime",
+			"ModularGameplay",
 			"Setly",
-			"Niagara", "NavigationSystem", 
+			"Niagara", "NavigationSystem",
 			"HTTP", "WebSockets", "Json", "JsonUtilities",
 			});
 
