@@ -4,6 +4,10 @@
 .vscode/
 .idea/
 .codebuddy/
+.agents/
+.claude/
+.specify/
+.uploads/
 
 # Compiled Object files
 *.slo
