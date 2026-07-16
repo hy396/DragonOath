@@ -7,6 +7,11 @@
 #include "AbilitySystemInterface.h"
 #include "Net/UnrealNetwork.h"
 #include "GameplayEffectExtension.h"
+// 本文件是 DragonOath「数值结算」权威点：仅做 Damage→Health / Healing→Health 转换与吸血。
+// 死亡判定 / 状态机 / Tag 应用 / FDOVerbMessage 广播 全部迁出到
+// Source/DragonOath/Components/DOHealthComponent.cpp（UDOHealthComponent）。
+// Lyra 等价实现见 Source/LyraGame/AbilitySystem/Attributes/LyraHealthSet.cpp
+//   + Source/LyraGame/Character/LyraHealthComponent.cpp。
 
 UDOHealthSet::UDOHealthSet()
 {
@@ -158,33 +163,29 @@ void UDOHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 				}
 			}
 
-			// ==================== 伤害特效 / 伤害数字显示落点（TODO）====================
-			// 此处已同时拿到最终伤害 LocalDamage 与 EffectContext，是播放受击特效与伤害飘字最自然的位置。
-			// 实际表现（GameplayCue.GameplayCue.Damage.* 类 Tag 或 Widget 飘字）将在后续阶段实现，可传入的数据：
-			//   - 最终伤害 LocalDamage                          -> 伤害数字
-			//   - EffectContext->IsCriticalHit()               -> 暴击闪光 / 红字 / 放大
-			//   - EffectContext->IsBlockedHit()                -> 格挡火花 / 偏斜（Phase 4 补齐格挡判定后生效）
-			//   - EffectContext->GetHitBoneName()              -> 部位受击点（爆头特效）
-			//   - EffectContext->GetDamageDirection()          -> 受击击退 / 朝向
-			//   - EffectContext->GetDamageElementTag()         -> 元素受击色（火/冰/雷）
-			//   - EffectContext->GetDamageMultiplier()         -> 倍率提示（爆头 2x）
-			//   - Data.Target.GetAvatarActor()                -> 特效挂点（目标）
-			//   - Data.EffectSpec.GetEffectContext().GetOriginalInstigator() -> 来源定位（如有需要）
-			// TODO: 在客户端（LocalPredicted 预测或权威）依据上述数据播放受击特效与伤害飘字。
-
-			// 死亡判定 —— 服务器权威
-			if (GetHealth() <= 0.0f)
+			// ==================== 死亡流程触发（权威）====================
+			// HealthSet 的职责到「把 Damage Meta 落到 Health + 吸血」为止。
+			// 死亡判定 / 事件广播 / Tag 应用全部交给 UDOHealthComponent。
+			// 这里只需在血量触底时触发 OnOutOfHealth 委托（带 bOutOfHealth 幂等保护），
+			// UDOHealthComponent 在 InitializeWithAbilitySystem 时挂这个委托，回调里会：
+			//   1) 触发 Event::Death 给 GAS 内部（GA_Death 等）
+			//   2) 权威广播 FDOVerbMessage「击杀事件」(Message.Combat.Elimination.Fired)
+			//   3) 推进 EDODeathState 状态机
+			//   4) 应用 Status_Death_Dying Tag 到 ASC
+			if (GetHealth() <= 0.0f && !bOutOfHealth)
 			{
-				// 通过GameplayEvent或Tag来通知死亡，而不是直接调用Die()
-				// 这样可以让GA_Death来处理死亡流程，更加解耦
-				FGameplayEventData EventData;
-				EventData.Instigator = Data.EffectSpec.GetEffectContext().GetOriginalInstigator();
-				EventData.Target = Data.Target.GetAvatarActor();
+				bOutOfHealth = true;
 
-				// 发送死亡事件，让监听此事件的GA来处理
-				Data.Target.HandleGameplayEvent(
-					DragonOathGameplayTags::Event::Death,
-					&EventData
+				// 六参 FDOAttributeEvent：Instigator, Causer, Spec, Magnitude, OldValue, NewValue
+				// OldValue 是扣血前的血量（NewValue + LocalDamage）
+				const float OldHealthValue = GetHealth() + LocalDamage;
+				OnOutOfHealth.Broadcast(
+					Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),  // EffectInstigator（原始发起者）
+					Data.EffectSpec.GetEffectContext().GetEffectCauser(),        // EffectCauser（直接施法者）
+					&Data.EffectSpec,                                            // EffectSpec（订阅方按需取暴击/部位/元素）
+					LocalDamage,                                                 // EffectMagnitude（最终伤害值）
+					OldHealthValue,                                              // OldValue
+					GetHealth()                                                  // NewValue
 				);
 			}
 		}
