@@ -9,6 +9,7 @@ class UDOAbilitySystemComponent;
 class UDOHealthSet;
 class UDOResourceSet;
 class UDOCombatSet;
+class UDOHealthComponent;
 struct FOnAttributeChangeData;
 
 /**
@@ -71,6 +72,13 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UDOCombatSet> CombatSet;
+
+	// 死亡行为组件：状态机 / Tag 应用 / FDOVerbMessage 广播。
+	// 怪物：与 ASC 一起挂自身（与 HealthSet 同生命周期）。
+	// 玩家：玩家 Character 上也创建一份，但实际玩家 ASC 在 PlayerState，
+	//       所以玩家 Character 上的这个组件是冗余实例（不影响功能，Character 销毁时一起释放）。
+	UPROPERTY()
+	TObjectPtr<UDOHealthComponent> HealthComponent;
 
 	// 角色等级。玩家默认 1，怪物由数据表配置。
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Character", Meta = (AllowPrivateAccess = "true"))

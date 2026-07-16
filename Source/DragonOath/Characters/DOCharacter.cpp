@@ -5,6 +5,7 @@
 #include "AbilitySystem/Attributes/DOResourceSet.h"
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/DOHealthComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOCharacter)
@@ -32,6 +33,11 @@ ADOCharacter::ADOCharacter(const FObjectInitializer& ObjectInitializer)
 	HealthSet = CreateDefaultSubobject<UDOHealthSet>(TEXT("HealthSet"));
 	ResourceSet = CreateDefaultSubobject<UDOResourceSet>(TEXT("ResourceSet"));
 	CombatSet = CreateDefaultSubobject<UDOCombatSet>(TEXT("CombatSet"));
+
+	// 死亡行为组件：状态机 / Tag 应用 / FDOVerbMessage 广播。挂 ASC 后自动注入。
+	// 玩家 Pawn 上也创建（冗余实例），但 Character 的 HealthComponent 不会被玩家 ASC 注入；
+	// 真正生效的玩家实例在 ADOPlayerState 上（见 DOPlayerState.cpp）。
+	HealthComponent = CreateDefaultSubobject<UDOHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ADOCharacter::BeginPlay()
@@ -77,6 +83,25 @@ void ADOCharacter::InitializeAbilitySystemComponent(UDOAbilitySystemComponent* I
 
 	// ASC 初始化后绑定属性变化委托
 	BindAttributeChangeDelegates();
+
+	// 死亡行为组件注入：挂 HealthSet 的三个委托（OnHealthChanged / OnMaxHealthChanged / OnOutOfHealth）。
+	// 两种路径：
+	//   a) 怪物 / NPC：OwnerActor == this，HealthComponent 与 ASC 都在 Character 上。
+	//   b) 玩家：OwnerActor == ADOPlayerState（玩家 ASC 在 PlayerState），HealthComponent 也在 PlayerState 上。
+	//      Character 上的冗余 HealthComponent 不注入（避免触发警告日志），由 PlayerState 上的实例承接。
+	if (InOwnerActor == this && HealthComponent)
+	{
+		// 路径 a：怪物 / NPC
+		HealthComponent->InitializeWithAbilitySystem(InAbilitySystemComponent);
+	}
+	else if (InOwnerActor != this)
+	{
+		// 路径 b：玩家走 PlayerState —— 在 OwnerActor 上找 HealthComponent（用静态 helper 统一入口）
+		if (UDOHealthComponent* OwnerHealthComp = UDOHealthComponent::FindHealthComponent(InOwnerActor))
+		{
+			OwnerHealthComp->InitializeWithAbilitySystem(InAbilitySystemComponent);
+		}
+	}
 }
 
 void ADOCharacter::BindAttributeChangeDelegates()

@@ -10,6 +10,7 @@ class UDOAbilitySystemComponent;
 class UDOHealthSet;
 class UDOResourceSet;
 class UDOCombatSet;
+class UDOHealthComponent;
 class UDOProfessionAbilityConfig;
 
 /**
@@ -80,6 +81,12 @@ private:
 	// 战斗属性集：AttackPower、DefensePower、MoveSpeed、暴击/命中/闪避/攻速/吸血。第二阶段从 DOPlaySet 拆分。
 	UPROPERTY()
 	TObjectPtr<UDOCombatSet> CombatSet;
+
+	// 死亡行为组件：状态机 / Tag 应用 / FDOVerbMessage 广播。
+	// 玩家走 PlayerState 路径，所以这个组件挂在 PlayerState 而不是 Character 上 —— 这样玩家死亡/换 Pawn/重生时，
+	// 死亡状态机与死亡 Tag 不会因为 Character 销毁而丢失。
+	UPROPERTY()
+	TObjectPtr<UDOHealthComponent> HealthComponent;
 
 	// 当前职业标识，复制到客户端
 	UPROPERTY(ReplicatedUsing = OnRep_ProfessionTag, EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true"))

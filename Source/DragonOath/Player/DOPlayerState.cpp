@@ -7,6 +7,7 @@
 #include "AbilitySystem/Attributes/DOCombatSet.h"
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
+#include "Components/DOHealthComponent.h"
 #include "DOLogChannels.h"
 #include "Net/UnrealNetwork.h"
 
@@ -24,6 +25,10 @@ ADOPlayerState::ADOPlayerState(const FObjectInitializer& ObjectInitializer)
 	HealthSet = CreateDefaultSubobject<UDOHealthSet>(TEXT("HealthSet"));
 	ResourceSet = CreateDefaultSubobject<UDOResourceSet>(TEXT("ResourceSet"));
 	CombatSet = CreateDefaultSubobject<UDOCombatSet>(TEXT("CombatSet"));
+
+	// 玩家死亡行为组件挂在 PlayerState（玩家 ASC 在 PlayerState，与 HealthSet 同生命周期）。
+	// 玩家 Character 上的同名 HealthComponent 是冗余实例，由 ADOCharacter 兜底跳过注入。
+	HealthComponent = CreateDefaultSubobject<UDOHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ADOPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
