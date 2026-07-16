@@ -58,6 +58,14 @@ namespace DragonOathGameplayTags
 
 		// 冲刺攻击窗口：冲刺结束后的一段时间，此期间按普攻触发冲刺攻击。
 		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(DashAttackWindow);
+
+		// 死亡流程中（Dying）：UDOHealthComponent::StartDeath 应用。
+		// 用途：让 GA / Ability 通过 ActivationOwnedTags Blocking(Status.Death.Dying) 自动拒绝激活；UI 可据此淡出交互按钮。
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Death_Dying);
+
+		// 死亡终态（Dead）：UDOHealthComponent::FinishDeath 应用。
+		// 用途：最强死亡标记，AI / 技能互斥 / 战斗系统 全部按 Dead 走；复活链路清除此 Tag 并补满 Health。
+		DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Death_Dead);
 	}
 
 	namespace InputTag
@@ -92,6 +100,26 @@ namespace DragonOathGameplayTags
 	// 本地消息总线频道（GameplayMessageRouter）
 	namespace Message
 	{
+		namespace Combat
+		{
+			// 伤害事件 verb（FDOVerbMessage 的 Verb 字段），Instigator 攻击 Target，Magnitude = 伤害值。
+			// 典型订阅方：HUD 伤害数字、HIT 受击反馈、连击检测处理器。
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageApplied);
+
+			// 击杀事件 verb：Instigator 击杀 Target，Target 携带 Status.Dead 后广播。
+			// 典型订阅方：连杀/助攻处理器、UI 击杀提示、GameplayCue（被击杀的轻量特效）。
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(EliminationFired);
+
+			// 助攻事件 verb：Instigator 协助击杀 Target，Magnitude = 助攻伤害贡献值。
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(AssistContributed);
+
+			// 重置事件 verb：服务器权威事件，例如回合重置、关卡重载。
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayReset);
+
+			// 父频道：PartialMatch 监听所有 Combat 子事件用。
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Combat);
+		}
+
 		namespace UI
 		{
 			// 红点系统：某节点状态变化时广播，Payload = FDORedDotChangedMessage

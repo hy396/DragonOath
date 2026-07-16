@@ -30,6 +30,8 @@ namespace DragonOathGameplayTags
 	{
 		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Dashing, "Status.Dashing", "角色正在冲刺中，带有无敌帧。");
 		UE_DEFINE_GAMEPLAY_TAG_COMMENT(DashAttackWindow, "Status.DashAttackWindow", "冲刺结束后的冲刺攻击窗口，此期间按普攻触发冲刺攻击。");
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Death_Dying, "Status.Death.Dying", "死亡流程中（Dying）：UDOHealthComponent::StartDeath 时应用。技能 ActivationOwnedTags Blocking 可据此自动拒绝激活。");
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Death_Dead, "Status.Death.Dead", "死亡终态（Dead）：UDOHealthComponent::FinishDeath 时应用。AI / 技能互斥 / 战斗系统全部按 Dead 走。");
 	}
 
 	namespace InputTag
@@ -59,6 +61,15 @@ namespace DragonOathGameplayTags
 
 	namespace Message
 	{
+		namespace Combat
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(DamageApplied,      "Message.Combat.Damage.Applied",      "伤害事件 verb，Payload = FDOVerbMessage（Instigator / Target / Magnitude）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(EliminationFired,   "Message.Combat.Elimination.Fired",   "击杀事件 verb，Payload = FDOVerbMessage。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(AssistContributed, "Message.Combat.Assist.Contributed",  "助攻事件 verb，Payload = FDOVerbMessage，Magnitude = 助攻伤害贡献值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayReset,      "Message.Combat.GameplayReset",       "服务器权威重置事件 verb。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Combat,             "Message.Combat",                     "父频道，PartialMatch 用。");
+		}
+
 		namespace UI
 		{
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(RedDotChanged, "Message.UI.RedDot.Changed", "红点节点状态变化时广播，Payload = FDORedDotChangedMessage。");
