@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "SharedCoolingAbility",
+	"Description": "基于GAS的共享CD能力系统",
+	"Category": "Other",
+	"CreatedBy": "肥家养猪",
+	"CreatedByURL": "https://github.com/hbdjzwl/SharedCoolingAbility/tree/main",
+	"DocsURL": "https://zhuanlan.zhihu.com/p/32216887423",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SharedCoolingAbility",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		}
+	]
+}
