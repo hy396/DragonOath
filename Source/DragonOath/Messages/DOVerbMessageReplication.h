@@ -13,13 +13,12 @@ struct FDOVerbMessageReplication;
 struct FNetDeltaSerializeInfo;
 
 /**
- * DragonOath 的"事件记录型"网络复制容器（FastArray）。
+ * DragonOath 的「事件记录型」网络复制容器（FastArray）。
  *
- * 一条 verb 消息（封装单条 FDOVerbMessage，作为 FastArray 的元素项）。
- *
- * 服务端调用 AddMessage(...) 把消息塞进容器，UE 通过 FastArraySerializer 增量复制到所有客户端；
- * 客户端在 PostReplicatedAdd / PostReplicatedChange 回调里把收到的消息再次广播到本地
- * UGameplayMessageSubsystem——这样"事件记录型"消息（伤害 / 击杀）能让所有客户端触发普通订阅方，
+ * 每个元素封装单条 FDOVerbMessage。服务端调用 AddMessage(...) 把消息塞进容器，
+ * UE 通过 FastArraySerializer 增量复制到所有客户端；客户端在 PostReplicatedAdd /
+ * PostReplicatedChange 回调里把收到的消息再次广播到本地 UGameplayMessageSubsystem，
+ * 从而让"事件记录型"消息（伤害 / 击杀）能在所有客户端的普通订阅方触发，
  * 与 PlayerState 上的 Client RPC 路径相互独立，但最终落到同一个本地总线。
  */
 USTRUCT(BlueprintType)
@@ -59,15 +58,14 @@ public:
 	// 设置宿主：FastArray 复制时需要拿宿主才能取到 World 进而取本地的 UGameplayMessageSubsystem。
 	void SetOwner(UObject* InOwner) { Owner = InOwner; }
 
-	// Broadcasts a message from server to clients.
 	// 服务端调用：把消息塞进 FastArray 容器（新增项会触发增量复制到客户端）。
 	void AddMessage(const FDOVerbMessage& Message);
 
 	//~FFastArraySerializer contract
 	// FastArray 序列化契约函数，由 UE 在复制系统里回调。
-	void PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize);   // 客户端即将删除这些项前调
-	void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize);       // 客户端收到新增后调
-	void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize);  // 客户端收到变更后调
+	void PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize);   // 客户端即将删除这些项前调用
+	void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize);       // 客户端收到新增后调用
+	void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize);  // 客户端收到变更后调用
 	//~End of FFastArraySerializer contract
 
 	// FastArray 序列化钩子：让 UE 知道如何对 CurrentMessages 做增量 delta 序列化。
@@ -77,17 +75,15 @@ public:
 	}
 
 private:
-	// 客户端收到增量后调：把收到的条目再次通过本地 UGameplayMessageSubsystem 广播出去。
+	// 客户端收到增量后调用：把收到的条目再次通过本地 UGameplayMessageSubsystem 广播出去。
 	void RebroadcastMessage(const FDOVerbMessage& Message);
 
 private:
-	// Replicated list of gameplay tag stacks.
-	// 真正被 FastArray 同步的"消息队列"。每条目是一项 FDOVerbMessageReplicationEntry。
+	// 真正被 FastArray 同步的「消息队列」，每项是一条 FDOVerbMessageReplicationEntry。
 	UPROPERTY()
 	TArray<FDOVerbMessageReplicationEntry> CurrentMessages;
 
-	// Owner (for a route to a world).
-	// 宿主：用来路由到 World，从而拿到客户端本地的 UGameplayMessageSubsystem。
+	// 宿主：用于路由到 World，从而拿到客户端本地的 UGameplayMessageSubsystem。
 	UPROPERTY()
 	TObjectPtr<UObject> Owner = nullptr;
 };

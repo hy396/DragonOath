@@ -82,9 +82,9 @@ FGameplayCueParameters UDOVerbMessageHelpers::VerbMessageToCueParameters(const F
 {
 	FGameplayCueParameters Result;
 
-	Result.OriginalTag           = Message.Verb;                         // 谓语 → GameplayCue 的 OriginalTag（用作 cue 标签）
-	Result.Instigator            = Cast<AActor>(Message.Instigator);     // 主语 → GAS 里的 Instigator 字段
-	Result.EffectCauser          = Cast<AActor>(Message.Target);         // 宾语 → GAS 里的 EffectCauser 字段
+	Result.OriginalTag           = Message.Verb;                         // Verb → GameplayCue 的 OriginalTag（用作 cue 标签）
+	Result.Instigator            = Cast<AActor>(Message.Instigator);     // Instigator → GAS 里的 Instigator 字段
+	Result.EffectCauser          = Cast<AActor>(Message.Target);         // Target → GAS 里的 EffectCauser 字段
 	Result.AggregatedSourceTags  = Message.InstigatorTags;              // 来源 tag
 	Result.AggregatedTargetTags  = Message.TargetTags;                  // 目标 tag
 	// ContextTags 当前未桥接到 GameplayCue，留作扩展点。

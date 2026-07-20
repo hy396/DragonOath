@@ -22,7 +22,6 @@ void UGameplayMessageProcessor::EndPlay(const EEndPlayReason::Type EndPlayReason
 	// 给子类一个主动反注册的机会（多数情况下靠下面的统一兜底即可）。
 	StopListening();
 
-	// Remove any listener handles.
 	// 兜底：遍历所有 handle，统一调 UnregisterListener，防止 GC 后 lambda 还触发野回调。
 	UGameplayMessageSubsystem& MessageSubsystem = UGameplayMessageSubsystem::Get(this);
 	for (FGameplayMessageListenerHandle& Handle : ListenerHandles)
