@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/Abilities/Core/DOAbilitySet.h"
+#include "Interface/SharedCoolingInterface.h"
 #include "DOAbilitySystemComponent.generated.h"
 
 class UDOAbilitySet;
@@ -23,7 +24,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnDOAbilityLevelChanged, FGameplayTag /*
  * 同时封装职业技能授予、升级、取消等项目级接口。
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class DRAGONOATH_API UDOAbilitySystemComponent : public UAbilitySystemComponent
+class DRAGONOATH_API UDOAbilitySystemComponent : public UAbilitySystemComponent, public ISharedCoolingInterface
 {
 	GENERATED_BODY()
 

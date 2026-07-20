@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "Ability/GA_SharedCoolingBase.h"
 #include "DOGameplayAbility.generated.h"
 
 UENUM(BlueprintType)
@@ -24,6 +25,7 @@ enum class EDOAbilityActivationPolicy : uint8
  *
  * 这层基类只保留项目真正需要统一的规则，不重复封装 UGameplayAbility 已有的能力：
  * - 默认使用 InstancedPerActor + LocalPredicted，适合玩家技能。
+ * - 继承自 UGA_SharedCoolingBase（SharedCoolingAbility 插件），所有技能可通过 bEnableSharedCooling + SharedCoolingTime 开启共享冷却（公共CD），默认关闭。
  * - 通过 ActivationPolicy 统一输入激活策略，ASC 依赖它决定何时 TryActivate。
  * - CanActivateAbility 拦截 Level <= 0 的技能，配合职业技能配置的 0 级未学习机制。
  * - OnGiveAbility / OnAvatarSet 处理 OnSpawn 被动的自动激活（带 Level 检查）。
@@ -32,7 +34,7 @@ enum class EDOAbilityActivationPolicy : uint8
  * 不需要额外的 DO* 间接层。
  */
 UCLASS(Abstract, Blueprintable)
-class DRAGONOATH_API UDOGameplayAbility : public UGameplayAbility
+class DRAGONOATH_API UDOGameplayAbility : public UGA_SharedCoolingBase
 {
 	GENERATED_BODY()
 

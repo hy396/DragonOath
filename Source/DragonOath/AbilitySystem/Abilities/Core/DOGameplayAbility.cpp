@@ -8,7 +8,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOGameplayAbility)
 
 UDOGameplayAbility::UDOGameplayAbility(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+	: Super()
 {
 	// UE5.8 已不推荐 NonInstanced 作为默认策略。玩家技能默认每个 ASC 一份实例，状态更清晰。
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;

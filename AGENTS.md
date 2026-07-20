@@ -15,11 +15,13 @@
 引擎路径：`D:\UE_5.8`
 
 ```powershell
-# 生成项目文件（修改 .uplugin / Build.cs 后需要执行）
-& "D:\UE_5.8\Engine\Build\ProjectFiles\ProjectFileGenerator.exe" "D:\ue_texiao\DragonOath\DragonOath.uproject"
+# 生成项目文件（修改 .uplugin / Build.cs 后需要执行；命令行编译其实直接读 .uproject，此步仅用于刷新 IDE 工程）
+& "D:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "D:\ue_texiao\DragonOath\DragonOath.uproject" -projectfiles
 
 # 编译（Development Editor）
-& "D:\UE_5.8\Engine\Build\Build\Build.exe" DragonOathEditor Win64 Development -Project="D:\ue_texiao\DragonOath\DragonOath.uproject" -WaitMutex
+# 注意：UE 5.8 的构建工具是 UnrealBuildTool，没有旧版的 Build.exe / ProjectFileGenerator.exe。
+# 通过 Build.bat 启动会自动配置引擎自带的 .NET 环境（Engine/Binaries/ThirdParty/DotNet/10.0）。
+& "D:\UE_5.8\Engine\Build\BatchFiles\Build.bat" DragonOathEditor Win64 Development -Project="D:\ue_texiao\DragonOath\DragonOath.uproject" -WaitMutex
 
 # 启动编辑器
 & "D:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "D:\ue_texiao\DragonOath\DragonOath.uproject"
@@ -32,7 +34,7 @@
 项目插件（`Plugins/` 目录下）：
 - GameSubtitles、UIExtension（已有但暂未启用，按需开启）
 - Setly — Lyra 衍生的前端框架插件，提供 InputConfig、LyraInputComponent、UI Policy 等
-- UnrealCSharp — C# 脚本支持（当前主要用于辅助，核心逻辑仍走 C++）
+- ~~UnrealCSharp~~ — 已移除（原 C# 脚本支持，核心逻辑仍走 C++）
 - GameplayMessageRouter — 本地消息总线
 - AsyncMixin、CommonLoadingScreen、GameSettings、CommonUser、ModularGameplayActors、CommonGame — Lyra 基础设施
 

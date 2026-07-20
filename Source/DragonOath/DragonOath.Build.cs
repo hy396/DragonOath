@@ -21,6 +21,7 @@ public class DragonOath : ModuleRules
 			"GameplayMessageRuntime",
 			"ModularGameplay",
 			"Setly",
+			"SharedCoolingAbility",  // 共享冷却（公共CD）插件：UDOAbilitySystemComponent 继承其 ISharedCoolingInterface，技能可继承 UGA_SharedCoolingBase
 			"Niagara", "NavigationSystem",
 			"HTTP", "WebSockets", "Json", "JsonUtilities",
 			});
