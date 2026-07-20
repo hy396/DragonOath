@@ -13,6 +13,7 @@ public class DragonOath : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine",
+			"NetCore",  // FFastArraySerializer 在 UE5 中位于 Net/Core 模块（FastArray 网络复制依赖）
 			"InputCore", "EnhancedInput",
 			"AIModule", "StateTreeModule", "GameplayStateTreeModule",
 			"UMG", "Slate", "SlateCore",

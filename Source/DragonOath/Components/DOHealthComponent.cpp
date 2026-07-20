@@ -65,7 +65,8 @@ void UDOHealthComponent::InitializeWithAbilitySystem(UDOAbilitySystemComponent* 
 
 	// HealthSet 通过 ASC 的 GetSet 拿到（玩家走 PlayerState 上的；怪物走 Character 上的）。
 	// 客户端上也走这条路径，因为 ASC->GetSet<UDOHealthSet>() 是 OwnerActor 的子对象。
-	HealthSet = AbilitySystemComponent ? AbilitySystemComponent->GetSet<UDOHealthSet>() : nullptr;
+	// GetSet 返回 const UDOHealthSet*，本类需绑定非 const 委托，故 const_cast 脱 const（Lyra 同款做法）。
+	HealthSet = AbilitySystemComponent ? const_cast<UDOHealthSet*>(AbilitySystemComponent->GetSet<UDOHealthSet>()) : nullptr;
 
 	if (!HealthSet)
 	{
