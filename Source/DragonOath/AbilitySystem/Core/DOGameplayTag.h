@@ -85,7 +85,57 @@ namespace DragonOathGameplayTags
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill3);
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill4);
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ultimate);
-			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Dodge);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Dash);
+		}
+	}
+
+	// ============================================================================
+	// Ability.* 子树设计（"耐用性"说明）
+	// ----------------------------------------------------------------------------
+	// 本命名空间按"正交维度"组织，三个子树互不冲突、可独立扩展：
+	//
+	//   Ability.Id.*    —— 身份维度（你现在填的）
+	//       每个技能恰好一个身份标签，作为 UI / 存档 / 技能树 / 运行时查找的"身份证"。
+	//       保持稳定，不要为了"分类互斥"往这里塞 Attack / Movement 之类（见 Type）。
+	//
+	//   Ability.Type.*  —— 分类维度（未来）
+	//       技能分类（Melee / Ranged / Movement / Buff 等），供
+	//       CancelAbilitiesWithTag / BlockAbilitiesWithTag 按类互斥。
+	//       对应 AGENTS.md 示例里提到的 Ability.Attack / Ability.Move.Dash，
+	//       建议后续统一归到 Ability.Type.* 下更清晰，与身份标签解耦。
+	//
+	//   Ability.Tier.*  —— 阶位维度（未来）
+	//       升级阶位（Tier.1 ~ Tier.N），配合技能树升级时改阶。
+	//
+	// 设计要点：身份是稳定的"点"，分类/阶位是可变的"面"，分维度存放可避免
+	// 一个技能既当身份证又被分类逻辑误匹配（如 Cancel 掉所有 Dodge 类技能）。
+	// ============================================================================
+	namespace Ability
+	{
+		namespace Id
+		{
+			// TODO: 新增技能时，在此按 "Ability.Id.<技能名>" 追加身份标签。
+			// 命名建议与技能蓝图 / InputTag.Ability.* 槽位对应（如 Ability.Id.PrimaryAttack 对应 InputTag.Ability.Primary）。
+			//
+			// 作用：作为该技能的"身份证"，供以下系统查找——
+			//   - UI：技能图标 / 冷却 / 红点按 AbilityId 取数据
+			//   - 存档：保存已学技能与等级（序列化用 AbilityId 而非类名，重命名蓝图不破坏旧存档）
+			//   - 升级 / 技能树：SkillTreeComponent 按 AbilityId 定位前置条件与消耗
+			//   - 运行时查找：ASC 按 AbilityId 反查已授予的 SpecHandle（中断 / 替换技能用）
+			//
+			// 注意：身份标签保持稳定，不要为了"分类互斥"往这里塞 Attack / Movement 之类，
+			//       那类用途应放 Ability.Type.*（见上方说明），属于正交维度互不干扰。
+			// TODO: 未来扩展维度（均挂在 Ability.* 下、与 Id 平级）：
+			//   - Ability.Type.*：技能分类（Melee / Ranged / Movement / Buff），供 CancelAbilitiesWithTag / BlockAbilitiesWithTag 按类互斥
+			//   - Ability.Tier.*：升级阶位（Tier.1 ~ Tier.N），配合技能树升级时改阶
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(PrimaryAttack);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Dash);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(DashAttack);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill1);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill2);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill3);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Skill4);
+			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ultimate);
 		}
 	}
 

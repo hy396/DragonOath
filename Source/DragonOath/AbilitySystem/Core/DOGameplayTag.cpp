@@ -42,13 +42,28 @@ namespace DragonOathGameplayTags
 		namespace Ability
 		{
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "InputTag.Ability.Primary", "龙斗士主技能输入。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Dash, "InputTag.Ability.Dash", "龙斗士冲刺技能输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Secondary, "InputTag.Ability.Secondary", "龙斗士副技能输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill1, "InputTag.Ability.Skill1", "龙斗士技能槽 1 输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill2, "InputTag.Ability.Skill2", "龙斗士技能槽 2 输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill3, "InputTag.Ability.Skill3", "龙斗士技能槽 3 输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill4, "InputTag.Ability.Skill4", "龙斗士技能槽 4 输入。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ultimate, "InputTag.Ability.Ultimate", "龙斗士终极技能输入。");
-			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Dodge, "InputTag.Ability.Dodge", "龙斗士闪避技能输入。");
+		}
+	}
+
+	namespace Ability
+	{
+		namespace Id
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(PrimaryAttack, "Ability.Id.PrimaryAttack", "普攻技能身份标识（AbilityId），用于 UI/存档/升级/技能树查找。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Dash, "Ability.Id.Dash", "冲刺技能身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(DashAttack, "Ability.Id.DashAttack", "冲刺攻击技能身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill1, "Ability.Id.Skill1", "技能槽 1 身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill2, "Ability.Id.Skill2", "技能槽 2 身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill3, "Ability.Id.Skill3", "技能槽 3 身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Skill4, "Ability.Id.Skill4", "技能槽 4 身份标识（AbilityId）。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ultimate, "Ability.Id.Ultimate", "终极技能身份标识（AbilityId）。");
 		}
 	}
 

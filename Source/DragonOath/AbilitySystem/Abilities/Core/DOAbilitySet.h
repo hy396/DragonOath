@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Engine/DataAsset.h"
+#include "UObject/Object.h"
 
 #include "DOAbilitySet.generated.h"
 
@@ -44,7 +45,8 @@ struct FDOAbilityGrant
 	GENERATED_BODY()
 
 	// 技能唯一标识，用于 UI、存档、升级查找。不建议用技能类名当唯一标识。
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 仅允许从 Ability.Id.* 命名空间选择，避免误填 InputTag / Status 等其它语义标签。
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (Categories = "Ability.Id"))
 	FGameplayTag AbilityId;
 
 	// 技能蓝图类，必须继承 UDOGameplayAbility
@@ -63,12 +65,12 @@ struct FDOAbilityGrant
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	EDOAbilityGrantTriggerType TriggerType = EDOAbilityGrantTriggerType::None;
 
-	// 输入标签，TriggerType = Input 时必须填写
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 输入标签，TriggerType = Input 时必须填写。仅允许 InputTag.* 命名空间（与 Setly 输入配置一致）。
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (Categories = "InputTag"))
 	FGameplayTag InputTag;
 
-	// 事件标签，TriggerType = GameplayEvent 时必须填写，同时 Ability 蓝图的 AbilityTriggers 也要配相同标签
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	// 事件标签，TriggerType = GameplayEvent 时必须填写，同时 Ability 蓝图的 AbilityTriggers 也要配相同标签。仅允许 Event.* 命名空间。
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (Categories = "Event"))
 	FGameplayTag EventTag;
 };
 
@@ -86,4 +88,7 @@ class DRAGONOATH_API UDOAbilitySet : public UPrimaryDataAsset
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (TitleProperty = "AbilityId"))
 	TArray<FDOAbilityGrant> GrantedAbilities;
+
+	// 编辑期数据校验：检查每个授予项的必填 Tag 与 TriggerType 是否匹配，避免漏填导致技能不可用。
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 };

@@ -36,7 +36,8 @@ public:
 	//~End of UGameplayAbility interface
 
 protected:
-	// RootMotion Task 完成时的回调
+	// RootMotion Task 完成时的回调。必须是 UFUNCTION，因为通过 AddDynamic 绑定（动态委托按名字反射查找）。
+	UFUNCTION()
 	void OnDashFinished();
 
 	// 获取冲刺方向。横版游戏只有左右，角色朝向即为冲刺方向。

@@ -3,6 +3,7 @@
 #include "AbilitySystem/Abilities/Common/DOGameplayAbility_DashAttack.h"
 
 #include "AbilitySystemComponent.h"
+#include "GameplayEffect.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
 
@@ -35,8 +36,11 @@ void UDOGameplayAbility_DashAttack::ActivateAbility(const FGameplayAbilitySpecHa
 		return;
 	}
 
-	// 消耗冲刺攻击窗口（一次性，避免重复触发）
-	ASC->RemoveLooseGameplayTag(DragonOathGameplayTags::Status::DashAttackWindow);
+	// TODO:2026/8/1 改为移除授予窗口标签的 Active GE，修复 RemoveLooseGameplayTag 无法消费 GE Granted Tag 的问题。@Claude
+	// 窗口标签由 DashAttackWindowEffectClass 的 Active GE 授予，不能按 Loose Tag 移除。
+	FGameplayTagContainer WindowTags;
+	WindowTags.AddTag(DragonOathGameplayTags::Status::DashAttackWindow);
+	ASC->RemoveActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(WindowTags));
 
 	// 播放冲刺攻击动画
 	if (DashAttackMontage)
