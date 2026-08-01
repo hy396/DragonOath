@@ -33,6 +33,11 @@
 9. [UE58_MCP_Notes.md](UE58_MCP_Notes.md)  
    UE 5.8 内置 MCP 与 Toolset 插件说明。
 
+## 当前修正记录
+
+- [战斗审查P0修正说明.md](方案/战斗审查P0修正说明.md)  
+  本轮已修复的战斗结算、伤害消息与 DashAttack 窗口问题；包含源码跳转、验证记录和未决跨网消息边界。
+
 ## 学习资料
 
 - [learn/](learn/README.md)  
@@ -61,7 +66,7 @@
 
 - 引擎：Unreal Engine 5.8（路径 `D:\UE_5.8`）
 - 项目名：DragonOath（龙斗士复刻学习项目）
-- 当前阶段：M1-M2，基础工程骨架和 GAS 基础已部分完成
+- 当前阶段：M2 核心技术骨架已完成，M3 基础战斗闭环进行中；跨网 Verb 消息桥接尚未接线
 - 开发策略：联机架构优先，第一阶段不做完整公网服务
 - 主要方向：复刻龙斗士原游戏体验，横版动作 RPG
 - 类前缀：统一使用 `DO`（如 `UDOAbilitySystemComponent`、`ADOPlayerCharacter`）

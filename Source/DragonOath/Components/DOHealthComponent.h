@@ -40,7 +40,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FDOHealthComponent_AttributeChange
  *
  * 网络：
  *   - DeathState 用 UPROPERTY(ReplicatedUsing=OnRep_DeathState) 同步到所有客户端
- *   - FDOVerbMessage 广播走 GameplayMessageRouter（GameplayMessageSubsystem），是本地频道；跨网靠 FDOVerbMessageReplication（PlayerState 上挂）补充
+ *   - FDOVerbMessage 广播走 GameplayMessageRouter（GameplayMessageSubsystem），是本地频道；
+ *     FDOVerbMessageReplication 目前只有容器类型，尚未接入复制宿主。
  *
  * 使用方式（仿 Lyra）：
  *   1. ADOCharacter / ADOPlayerState 构造时 CreateDefaultSubobject<UDOHealthComponent>
@@ -114,6 +115,8 @@ protected:
 	// ====== AttributeSet 委托回调（匹配 DOHealthSet.h 的 FDOAttributeEvent 六参签名）======
 
 	void HandleHealthChanged(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue);
+	// TODO:2026/8/1 新增专用最终伤害回调，避免 HandleHealthChanged 将治疗和 clamp 误发为伤害消息。@Claude
+	void HandleDamageApplied(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue);
 	void HandleMaxHealthChanged(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue);
 	void HandleOutOfHealth(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue);
 

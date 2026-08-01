@@ -27,6 +27,10 @@ public:
 	// Health 变化事件。客户端收到复制时可能拿不到完整 EffectSpec，因此监听者需要允许部分参数为空。
 	mutable FDOAttributeEvent OnHealthChanged;
 
+	// TODO:2026/8/1 新增最终伤害专用事件，避免把治疗、回复与属性 clamp 误当作伤害。@Claude
+	// 最终伤害落到 Health 的事件。仅由 Damage Meta 结算路径广播，不能用普通生命变化替代。
+	mutable FDOAttributeEvent OnDamageApplied;
+
 	// MaxHealth 变化事件，通常用于刷新血条上限。
 	mutable FDOAttributeEvent OnMaxHealthChanged;
 
@@ -59,6 +63,10 @@ public:
 	float MaxHealthBeforeAttributeChange;
 	float HealthBeforeAttributeChange;
     
+	// TODO:2026/8/1 抑制 Meta Attribute 落地时的通用回调，确保携带完整 EffectSpec 的事件只派发一次。@Claude
+	// 处理 Damage / Healing Meta 时由 PostGameplayEffectExecute 负责携带完整上下文广播，避免 PostAttributeChange 重复派发。
+	bool bSuppressHealthChangedBroadcast = false;
+
 	// 治疗输入值。当前尚未接入完整治疗结算，可后续像 Damage 一样在 PostGameplayEffectExecute 中转换。
 	UPROPERTY(BlueprintReadOnly, Category="DO|Health", Meta=(AllowPrivateAccess=true))
 	FGameplayAttributeData Healing;

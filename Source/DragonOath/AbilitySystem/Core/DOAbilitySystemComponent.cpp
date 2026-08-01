@@ -447,6 +447,10 @@ void UDOAbilitySystemComponent::ApplyDamageToTarget(TSubclassOf<UGameplayEffect>
 		return;
 	}
 
+	// TODO:2026/8/1 将调用方 SourceTags 写入当前伤害 Spec，修复伤害类型和吸血标签无法被结算链读取的问题。@Claude
+	// 来源标签只属于本次伤害 Spec；Execution、吸血和战斗消息都从 CapturedSourceTags 读取。
+	SpecHandle.Data->AppendDynamicAssetTags(SourceTags);
+
 	// 技能参数通过 SetByCaller 传给伤害 GE 的 ExecutionCalculation。
 	SpecHandle.Data->SetSetByCallerMagnitude(DragonOathGameplayTags::Data::Damage, SkillBaseDamage);
 	SpecHandle.Data->SetSetByCallerMagnitude(DragonOathGameplayTags::Data::DamageMultiplier, SkillDamageMultiplier);

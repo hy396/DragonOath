@@ -18,6 +18,8 @@ UDOHealthSet::UDOHealthSet()
 	InitHealth(100.0f);
 	InitMaxHealth(100.0f);
 	InitDamage(0.0f);
+	// TODO:2026/8/1 初始化 Healing Meta，确保吸血等治疗结算从确定的零值开始。@Claude
+	InitHealing(0.0f);
 	InitHealthRegen(0.0f);
 }
 
@@ -85,7 +87,8 @@ void UDOHealthSet::PostAttributeChange(const FGameplayAttribute& Attribute, floa
 
 	if (Attribute == GetMaxHealthAttribute())
 	{
-		// Make sure current health is not greater than the new max health.
+		// TODO:2026/8/1 直接属性变更也派发生命/上限事件；Damage/Healing Meta 的完整上下文事件在结算阶段单独派发。@Claude
+		// 最大生命变化时先保证当前生命不超过新上限；Health 的变化会由下面的独立回调广播。
 		if (GetHealth() > NewValue)
 		{
 			UDOAbilitySystemComponent* DOASC = GetUDOAbilitySystemComponent();
@@ -93,9 +96,20 @@ void UDOHealthSet::PostAttributeChange(const FGameplayAttribute& Attribute, floa
 
 			DOASC->ApplyModToAttribute(GetHealthAttribute(), EGameplayModOp::Override, NewValue);
 		}
+
+		if (!FMath::IsNearlyEqual(OldValue, NewValue))
+		{
+			OnMaxHealthChanged.Broadcast(nullptr, nullptr, nullptr, NewValue - OldValue, OldValue, NewValue);
+		}
+	}
+	else if (Attribute == GetHealthAttribute() && !bSuppressHealthChangedBroadcast && !FMath::IsNearlyEqual(OldValue, NewValue))
+	{
+		// 普通数值变化（治疗、回复、复制与直接属性修改）只通知血量变化。
+		// Damage Meta 会在 PostGameplayEffectExecute 中额外发出 OnDamageApplied，不在此处猜测来源。
+		OnHealthChanged.Broadcast(nullptr, nullptr, nullptr, NewValue - OldValue, OldValue, NewValue);
 	}
 
-	if (bOutOfHealth && (GetHealth() > 0.0f))
+	if (bOutOfHealth && GetHealth() > 0.0f)
 	{
 		bOutOfHealth = false;
 	}
@@ -125,14 +139,43 @@ void UDOHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 
 	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
 	{
+		// TODO:2026/8/1 Damage/Healing Meta 落地改为只广播一次完整上下文，并单独区分最终伤害事件。@Claude
 		// Damage是Meta属性，读取后转换为Health变化
 		const float LocalDamage = GetDamage();
 		SetDamage(0.0f); // 立即清零，Meta属性只是中转
 
 		if (LocalDamage > 0.0f)
 		{
-			const float NewHealth = GetHealth() - LocalDamage;
-			SetHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
+			const float OldHealthValue = GetHealth();
+			const float NewHealthValue = FMath::Clamp(OldHealthValue - LocalDamage, 0.0f, GetMaxHealth());
+			const float AppliedDamage = OldHealthValue - NewHealthValue;
+
+			bSuppressHealthChangedBroadcast = true;
+			SetHealth(NewHealthValue);
+			bSuppressHealthChangedBroadcast = false;
+
+			if (AppliedDamage <= 0.0f)
+			{
+				return;
+			}
+
+			// Damage Meta 的最终落点需要携带完整 Spec；普通属性变更只在 PostAttributeChange 广播。
+			OnHealthChanged.Broadcast(
+				Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),
+				Data.EffectSpec.GetEffectContext().GetEffectCauser(),
+				&Data.EffectSpec,
+				-AppliedDamage,
+				OldHealthValue,
+				NewHealthValue
+			);
+			OnDamageApplied.Broadcast(
+				Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),
+				Data.EffectSpec.GetEffectContext().GetEffectCauser(),
+				&Data.EffectSpec,
+				AppliedDamage,
+				OldHealthValue,
+				NewHealthValue
+			);
 
 			// ==================== 吸血（真实伤害驱动，仅服务端）====================
 			// 本函数只在服务器执行，天然避免 LocalPredicted 客户端双重回血。
@@ -176,30 +219,47 @@ void UDOHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 			{
 				bOutOfHealth = true;
 
-				// 六参 FDOAttributeEvent：Instigator, Causer, Spec, Magnitude, OldValue, NewValue
-				// OldValue 是扣血前的血量（NewValue + LocalDamage）
-				const float OldHealthValue = GetHealth() + LocalDamage;
-				OnOutOfHealth.Broadcast(
-					Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),  // EffectInstigator（原始发起者）
-					Data.EffectSpec.GetEffectContext().GetEffectCauser(),        // EffectCauser（直接施法者）
-					&Data.EffectSpec,                                            // EffectSpec（订阅方按需取暴击/部位/元素）
-					LocalDamage,                                                 // EffectMagnitude（最终伤害值）
-					OldHealthValue,                                              // OldValue
-					GetHealth()                                                  // NewValue
-				);
+					// 六参 FDOAttributeEvent：Instigator, Causer, Spec, Magnitude, OldValue, NewValue。
+					// 使用实际扣血后的数值，避免伤害超过剩余生命时把过量伤害作为 OldValue。
+					OnOutOfHealth.Broadcast(
+						Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),
+						Data.EffectSpec.GetEffectContext().GetEffectCauser(),
+						&Data.EffectSpec,
+						AppliedDamage,
+						OldHealthValue,
+						NewHealthValue
+					);
 			}
 		}
 	}
 	else if (Data.EvaluatedData.Attribute == GetHealingAttribute())
 	{
-		// Healing是Meta属性，读取后转换为Health回复（吸血等来源）
+		// TODO:2026/8/1 Healing Meta 落地后仅触发生命变化，禁止误报 Message.Combat.DamageApplied。@Claude
+		// Healing 是 Meta 属性，读取后转换为 Health 回复（吸血等来源）。
 		const float LocalHeal = GetHealing();
-		SetHealing(0.0f); // 立即清零，Meta属性只是中转
+		SetHealing(0.0f);
 
 		if (LocalHeal > 0.0f)
 		{
-			const float NewHealth = GetHealth() + LocalHeal;
-			SetHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
+			const float OldHealthValue = GetHealth();
+			const float NewHealthValue = FMath::Clamp(OldHealthValue + LocalHeal, 0.0f, GetMaxHealth());
+			const float AppliedHealing = NewHealthValue - OldHealthValue;
+
+			bSuppressHealthChangedBroadcast = true;
+			SetHealth(NewHealthValue);
+			bSuppressHealthChangedBroadcast = false;
+
+			if (AppliedHealing > 0.0f)
+			{
+				OnHealthChanged.Broadcast(
+					Data.EffectSpec.GetEffectContext().GetOriginalInstigator(),
+					Data.EffectSpec.GetEffectContext().GetEffectCauser(),
+					&Data.EffectSpec,
+					AppliedHealing,
+					OldHealthValue,
+					NewHealthValue
+				);
+			}
 		}
 	}
 }

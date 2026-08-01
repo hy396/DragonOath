@@ -77,8 +77,10 @@ void UDOHealthComponent::InitializeWithAbilitySystem(UDOAbilitySystemComponent* 
 		return;
 	}
 
-	// 三个委托挂钩 —— HealthSet 已经声明 OnHealthChanged / OnMaxHealthChanged / OnOutOfHealth 三个 FDOAttributeEvent
+	// TODO:2026/8/1 拆分生命变化、最终伤害和死亡三个事件来源，防止治疗/回复被误广播为伤害。@Claude
+	// 四个委托挂钩 —— HealthSet 将数值变化、伤害结算和死亡事件拆分广播。
 	HealthSet->OnHealthChanged.AddUObject(this, &UDOHealthComponent::HandleHealthChanged);
+	HealthSet->OnDamageApplied.AddUObject(this, &UDOHealthComponent::HandleDamageApplied);
 	HealthSet->OnMaxHealthChanged.AddUObject(this, &UDOHealthComponent::HandleMaxHealthChanged);
 	HealthSet->OnOutOfHealth.AddUObject(this, &UDOHealthComponent::HandleOutOfHealth);
 }
@@ -88,6 +90,7 @@ void UDOHealthComponent::UninitializeFromAbilitySystem()
 	if (HealthSet)
 	{
 		HealthSet->OnHealthChanged.RemoveAll(this);
+		HealthSet->OnDamageApplied.RemoveAll(this);
 		HealthSet->OnMaxHealthChanged.RemoveAll(this);
 		HealthSet->OnOutOfHealth.RemoveAll(this);
 	}
@@ -102,10 +105,14 @@ void UDOHealthComponent::UninitializeFromAbilitySystem()
 
 void UDOHealthComponent::HandleHealthChanged(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue)
 {
-	// 蓝图委托 —— 客户端和服务器都会触发（PostAttributeChange 是双端调用）
+	// 蓝图委托 —— 客户端和服务器都会触发（PostAttributeChange 是双端调用）。
+	// 它代表所有生命变化，包含伤害、治疗、回复和属性 clamp；伤害消息由 OnDamageApplied 单独驱动。
 	OnHealthChanged.Broadcast(this, OldValue, NewValue, EffectCauser ? EffectCauser : EffectInstigator);
+}
 
-	// 服务端权威广播 DamageApplied（仅权威；客户端走 FDOVerbMessageReplication 跨网）
+void UDOHealthComponent::HandleDamageApplied(AActor* EffectInstigator, AActor* EffectCauser, const FGameplayEffectSpec* EffectSpec, float EffectMagnitude, float OldValue, float NewValue)
+{
+	// TODO:2026/8/1 仅最终 Damage Meta 结算可进入伤害消息通道，治疗和属性 clamp 不再触发该消息。@Claude
 	if (AbilitySystemComponent && AbilitySystemComponent->IsOwnerActorAuthoritative())
 	{
 		BroadcastDamageApplied(EffectInstigator, EffectCauser, EffectSpec, EffectMagnitude);
@@ -239,11 +246,6 @@ void UDOHealthComponent::BroadcastDamageApplied(AActor* EffectInstigator, AActor
 		if (const FGameplayTagContainer* TgtTags = EffectSpec->CapturedTargetTags.GetAggregatedTags())
 		{
 			DamageMsg.TargetTags = *TgtTags;
-		}
-		// ContextTags：Damage.Source / Damage.Type 等（订阅方可用于筛选"是不是暴击""是不是元素伤害"）
-		if (EffectSpec->GetEffectContext().GetSourceObject())
-		{
-			DamageMsg.ContextTags.AddTag(FGameplayTag::RequestGameplayTag(FName("Combat.Damage.Source"), /*ErrorIfNotFound*/ false));
 		}
 	}
 

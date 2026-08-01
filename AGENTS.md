@@ -206,19 +206,20 @@ BlockAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Move
 
 C++ 侧改动完成后，需要在编辑器里跟进的蓝图/资产配置统一记录在 `Docs/蓝图需要做的事情/` 目录下，按"功能改造_蓝图待办.md"命名。**AGENTS.md 仅保留索引与核心任务镜像，详细步骤以该目录文件为准。**
 
-- 当前待办文件：`Docs/蓝图需要做的事情/冲刺双击改造_蓝图待办.md`
+- 当前待办文件：`Docs/蓝图需要做的事情/闪避改造_蓝图待办.md`
 - 同步规则：当 C++ 完成某项任务（如新增 InputTag、删除手写逻辑），若涉及 `.uasset` 配置，须在 `Docs/蓝图需要做的事情/` 新增/更新对应待办，并将任务项镜像到本节的"当前待办任务"中，保持描述一致。
 
-### 当前待办任务（冲刺双击增强输入改造）
+### 当前待办任务（闪避 Dodge 改造）
 
-> 说明：UE 5.8 无 `UInputTriggerDoubleTap`，双动用 **`UInputTriggerRepeatedTap`**（`NumberOfTapsWhichTriggerRepeat = 2`，`RepeatDelay = 0.25`）。
+> 说明：原「冲刺 Dash」方案已改名为「闪避 Dodge」。`GA_Dodge` 蓝图继承自 C++ 基类 `DOGameplayAbility_Dash`，
+> 复用其位移/无敌帧逻辑，输入标签改用 `InputTag.Ability.Dodge`。旧 `GA_Dash` 已删除、`InputTag.Dash` 已弃用。
+> 双触触发用 **`UInputTriggerRepeatedTap`**（`NumberOfTapsWhichTriggerRepeat = 2`，`RepeatDelay = 0.25`）。
 
-1. 新建 `IA_Dash`（`Digital(bool)` + `Repeated Tap` 触发器，`RepeatDelay = 0.25`）
-2. `IMC_Default`：保留 `A/D → IA_Move`，新增 `A → IA_Dash`、`D → IA_Dash`
-3. `DA_InputConfig`：`AbilityInputActions` 新增 `IA_Dash → InputTag.Dash`
-4. `GA_Dash` 授予配置（`FDOAbilityGrant.InputTag`）设为 `InputTag.Dash`
+1. **`DA_AbilitySet` 授予 `GA_Dodge`**：`GrantedAbilities` 新增 `FDOAbilityGrant`（`Ability = GA_Dodge`，`InputTag = InputTag.Ability.Dodge`，`Level = 1`）。⚠️ 当前 `DA_AbilitySet` 未授予任何技能，闪避目前完全不可用。
+2. 编辑器确认 `IMC_Default` 中 `IA_dodge` 绑定的物理键（旧方案双击 A/D）及 `RepeatedTap` 参数（`Taps=2`、`RepeatDelay=0.25`）。
+3. （可选）清理 `DOGameplayTag` 中已弃用的 `InputTag.Dash`；`DOGameplayAbility_Dash` 类名是否改为 `Dodge` 待定（需同步改蓝图父类）。
 
-C++ 已完成：`DOGameplayTag` 新增 `InputTag::Dash`；`DOPlayerCharacter` 删除手写双击逻辑。详细步骤见上述待办文件。
+C++ 已完成：`DOGameplayTag` 新增 `InputTag::Ability::Dodge`；`DOPlayerCharacter` 删除手写双击逻辑。详细步骤见上述待办文件。
 
 ## Spec Kit
 
