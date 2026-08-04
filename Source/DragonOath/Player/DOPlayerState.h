@@ -12,6 +12,9 @@ class UDOResourceSet;
 class UDOCombatSet;
 class UDOHealthComponent;
 class UDOProfessionAbilityConfig;
+class UDOInventoryComponent;
+class UDOEquipmentComponent;
+class UDOItemQuickBarComponent;
 
 /**
  * 玩家状态。
@@ -30,6 +33,8 @@ public:
 	ADOPlayerState(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
@@ -45,9 +50,32 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DO|PlayerState")
 	UDOCombatSet* GetCombatSet() const;
 
+	UFUNCTION(BlueprintPure, Category = "DO|Inventory")
+	UDOInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+
+	UFUNCTION(BlueprintPure, Category = "DO|Equipment")
+	UDOEquipmentComponent* GetEquipmentComponent() const { return EquipmentComponent; }
+
+	UFUNCTION(BlueprintPure, Category = "DO|ItemQuickBar")
+	UDOItemQuickBarComponent* GetItemQuickBarComponent() const { return ItemQuickBarComponent; }
+
 	// 当前职业标识
 	UFUNCTION(BlueprintPure, Category = "DO|Profession")
 	FGameplayTag GetProfessionTag() const { return ProfessionTag; }
+
+	/** 将当前背包、装备和快捷栏写入本地 SaveGame。只允许服务器/Standalone 执行。 */
+	UFUNCTION(BlueprintCallable, Category = "DO|Save")
+	bool SaveInventoryToSlot();
+
+	/** 从本地 SaveGame 恢复背包、装备和快捷栏。只允许服务器/Standalone 执行。 */
+	UFUNCTION(BlueprintCallable, Category = "DO|Save")
+	bool LoadInventoryFromSlot();
+
+	/**
+	 * 在 PlayerState ASC 完成 InitAbilityActorInfo 后调用一次。
+	 * 装备存档需要把 GameplayEffect 应用到已初始化的 ASC，不能在 PlayerState BeginPlay 过早恢复。
+	 */
+	void NotifyInventoryPersistenceReady();
 
 	// 服务端切换职业：清除旧技能 -> 设置新职业 Tag -> 授予新技能
 	UFUNCTION(BlueprintCallable, Category = "DO|Profession")
@@ -88,6 +116,16 @@ private:
 	UPROPERTY()
 	TObjectPtr<UDOHealthComponent> HealthComponent;
 
+	// 背包挂在 PlayerState，死亡、重生和换 Pawn 时保持不变。
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DO|Inventory", Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDOInventoryComponent> InventoryComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DO|Equipment", Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDOEquipmentComponent> EquipmentComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DO|ItemQuickBar", Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDOItemQuickBarComponent> ItemQuickBarComponent;
+
 	// 当前职业标识，复制到客户端
 	UPROPERTY(ReplicatedUsing = OnRep_ProfessionTag, EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true"))
 	FGameplayTag ProfessionTag;
@@ -100,6 +138,24 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", Categories = "Profession"))
 	FGameplayTag DefaultProfessionTag;
 
+	/** SaveGame 槽位名前缀；最终槽位名会附加 PlayerId，避免联机玩家互相覆盖。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	FString InventorySaveSlotPrefix = TEXT("DragonOath_Player");
+
+	/** 第一版本地/Listen Server 是否在 PlayerState 生命周期中自动读档。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	bool bAutoLoadInventory = true;
+
+	/** 第一版本地/Listen Server 是否在 PlayerState 销毁前自动保存。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	bool bAutoSaveInventory = true;
+
 	// 服务端标记，防止重复授予
 	bool bProfessionAbilitiesGranted = false;
+
+	// 存档恢复必须等待玩家 ASC 初始化完成，避免装备 GE 丢失。
+	bool bInventoryPersistenceReady = false;
+	bool bInventoryLoadAttempted = false;
+
+	FString GetInventorySaveSlotName() const;
 };

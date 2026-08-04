@@ -17,6 +17,7 @@ public class DragonOath : ModuleRules
 			"InputCore", "EnhancedInput",
 			"AIModule", "StateTreeModule", "GameplayStateTreeModule",
 			"UMG", "Slate", "SlateCore",
+			"CommonUI", "CommonGame",
 			"GameplayAbilities", "GameplayTags", "GameplayTasks",
 			"GameplayMessageRuntime",
 			"ModularGameplay",

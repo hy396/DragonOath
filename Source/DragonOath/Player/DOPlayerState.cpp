@@ -8,8 +8,13 @@
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
 #include "Components/DOHealthComponent.h"
+#include "ItemSystem/Inventory/DOInventoryComponent.h"
+#include "ItemSystem/Equipment/DOEquipmentComponent.h"
+#include "ItemSystem/QuickBar/DOItemQuickBarComponent.h"
 #include "DOLogChannels.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "SaveGame/DOSaveGame.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOPlayerState)
 
@@ -29,6 +34,9 @@ ADOPlayerState::ADOPlayerState(const FObjectInitializer& ObjectInitializer)
 	// 玩家死亡行为组件挂在 PlayerState（玩家 ASC 在 PlayerState，与 HealthSet 同生命周期）。
 	// 玩家 Character 上的同名 HealthComponent 是冗余实例，由 ADOCharacter 兜底跳过注入。
 	HealthComponent = CreateDefaultSubobject<UDOHealthComponent>(TEXT("HealthComponent"));
+	InventoryComponent = CreateDefaultSubobject<UDOInventoryComponent>(TEXT("InventoryComponent"));
+	EquipmentComponent = CreateDefaultSubobject<UDOEquipmentComponent>(TEXT("EquipmentComponent"));
+	ItemQuickBarComponent = CreateDefaultSubobject<UDOItemQuickBarComponent>(TEXT("ItemQuickBarComponent"));
 }
 
 void ADOPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -36,6 +44,89 @@ void ADOPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ADOPlayerState, ProfessionTag);
+}
+
+void ADOPlayerState::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+void ADOPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (HasAuthority() && bAutoSaveInventory)
+	{
+		SaveInventoryToSlot();
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+FString ADOPlayerState::GetInventorySaveSlotName() const
+{
+	const FString Prefix = InventorySaveSlotPrefix.IsEmpty() ? TEXT("DragonOath_Player") : InventorySaveSlotPrefix;
+	return FString::Printf(TEXT("%s_%d"), *Prefix, FMath::Max(0, GetPlayerId()));
+}
+
+bool ADOPlayerState::SaveInventoryToSlot()
+{
+	if (!HasAuthority())
+	{
+		return false;
+	}
+
+	UDOSaveGame* SaveGame = UDOSaveGame::CaptureFromPlayerState(this);
+	if (!SaveGame)
+	{
+		UE_LOG(LogDragonOath, Warning, TEXT("SaveInventoryToSlot: 无法从 PlayerState 创建存档对象。"));
+		return false;
+	}
+
+	const FString SlotName = GetInventorySaveSlotName();
+	const bool bSaved = UGameplayStatics::SaveGameToSlot(SaveGame, SlotName, 0);
+	UE_LOG(LogDragonOath, Log, TEXT("SaveInventoryToSlot: Slot=%s Result=%s"), *SlotName, bSaved ? TEXT("Success") : TEXT("Failed"));
+	return bSaved;
+}
+
+bool ADOPlayerState::LoadInventoryFromSlot()
+{
+	if (!HasAuthority() || !bInventoryPersistenceReady)
+	{
+		return false;
+	}
+	bInventoryLoadAttempted = true;
+
+	const FString SlotName = GetInventorySaveSlotName();
+	if (!UGameplayStatics::DoesSaveGameExist(SlotName, 0))
+	{
+		UE_LOG(LogDragonOath, Verbose, TEXT("LoadInventoryFromSlot: Slot=%s 不存在，使用默认状态。"), *SlotName);
+		return false;
+	}
+
+	UDOSaveGame* SaveGame = Cast<UDOSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+	if (!SaveGame)
+	{
+		UE_LOG(LogDragonOath, Warning, TEXT("LoadInventoryFromSlot: Slot=%s 加载失败或类型不匹配。"), *SlotName);
+		return false;
+	}
+
+	const bool bRestored = SaveGame->RestoreToPlayerState(this);
+	UE_LOG(LogDragonOath, Log, TEXT("LoadInventoryFromSlot: Slot=%s Result=%s"), *SlotName, bRestored ? TEXT("Success") : TEXT("Rejected"));
+	return bRestored;
+}
+
+void ADOPlayerState::NotifyInventoryPersistenceReady()
+{
+	if (bInventoryPersistenceReady)
+	{
+		return;
+	}
+
+	bInventoryPersistenceReady = true;
+	if (HasAuthority() && bAutoLoadInventory && !bInventoryLoadAttempted)
+	{
+		bInventoryLoadAttempted = true;
+		LoadInventoryFromSlot();
+	}
 }
 
 UAbilitySystemComponent* ADOPlayerState::GetAbilitySystemComponent() const

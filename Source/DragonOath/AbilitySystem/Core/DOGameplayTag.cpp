@@ -16,6 +16,74 @@ namespace DragonOathGameplayTags
 	{
 		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage, "Data.Damage", "技能基础伤害值，通过 SetByCaller 传给伤害 GE。");
 		UE_DEFINE_GAMEPLAY_TAG_COMMENT(DamageMultiplier, "Data.DamageMultiplier", "技能伤害倍率，通过 SetByCaller 传给伤害 GE。");
+
+		namespace Equipment
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(AttackPower, "Data.Equipment.AttackPower", "装备提供的攻击力 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(DefensePower, "Data.Equipment.DefensePower", "装备提供的防御力 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(MaxHealth, "Data.Equipment.MaxHealth", "装备提供的最大生命值 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(MaxMana, "Data.Equipment.MaxMana", "装备提供的最大法力值 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(CriticalRating, "Data.Equipment.CriticalRating", "装备提供的暴击属性 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitRating, "Data.Equipment.HitRating", "装备提供的命中属性 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(EvasionRating, "Data.Equipment.EvasionRating", "装备提供的闪避属性 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(AttackSpeed, "Data.Equipment.AttackSpeed", "装备提供的攻击速度 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(MoveSpeed, "Data.Equipment.MoveSpeed", "装备提供的移动速度 SetByCaller 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(LifeStealRate, "Data.Equipment.LifeStealRate", "装备提供的吸血比例 SetByCaller 数值。");
+		}
+
+		namespace ItemUse
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Healing, "Data.ItemUse.Healing", "消耗品提供的生命回复 Meta Attribute 数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(ManaRestore, "Data.ItemUse.ManaRestore", "消耗品提供的法力回复数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(StaminaRestore, "Data.ItemUse.StaminaRestore", "消耗品提供的体力回复数值。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Duration, "Data.ItemUse.Duration", "限时属性道具的持续时间。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(CooldownDuration, "Data.ItemUse.CooldownDuration", "消耗品公共冷却的持续时间。");
+		}
+	}
+
+	namespace Item
+	{
+		namespace Type
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Equipment, "Item.Type.Equipment", "装备类物品。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Consumable, "Item.Type.Consumable", "消耗品类物品。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Material, "Item.Type.Material", "材料类物品。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Quest, "Item.Type.Quest", "任务类物品。");
+		}
+
+		namespace Category
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Weapon, "Item.Category.Weapon", "武器分类。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Armor, "Item.Category.Armor", "防具分类。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Accessory, "Item.Category.Accessory", "饰品分类。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Potion, "Item.Category.Potion", "药水分类。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(EnhancementMaterial, "Item.Category.EnhancementMaterial", "强化材料分类。");
+		}
+
+		namespace Rarity
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Common, "Item.Rarity.Common", "普通品质。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Uncommon, "Item.Rarity.Uncommon", "优秀品质。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Rare, "Item.Rarity.Rare", "稀有品质。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Epic, "Item.Rarity.Epic", "史诗品质。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Legendary, "Item.Rarity.Legendary", "传说品质。");
+		}
+	}
+
+	namespace Equipment
+	{
+		namespace Slot
+		{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Head, "Equipment.Slot.Head", "头部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Shoulder, "Equipment.Slot.Shoulder", "肩部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Back, "Equipment.Slot.Back", "背部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Chest, "Equipment.Slot.Chest", "胸部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Hands, "Equipment.Slot.Hands", "手部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Legs, "Equipment.Slot.Legs", "腿部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Feet, "Equipment.Slot.Feet", "脚部装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Accessory, "Equipment.Slot.Accessory", "饰品装备槽。");
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Weapon, "Equipment.Slot.Weapon", "武器装备槽。");
+		}
 	}
 
 	namespace Damage
@@ -87,6 +155,29 @@ namespace DragonOathGameplayTags
 
 		namespace UI
 		{
+			namespace Layer
+			{
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(Menu, "UI.Layer.Menu", "背包等主动菜单页面所在的 CommonUI 层。");
+			}
+
+			namespace Inventory
+			{
+			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.Inventory.Changed", "背包数据在本地完成刷新后广播。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.Inventory.OperationFailed", "背包服务器操作失败后广播。");
+			}
+
+			namespace Equipment
+			{
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.Equipment.Changed", "装备数据在本地完成刷新后广播。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.Equipment.OperationFailed", "装备请求被服务器拒绝后广播的失败消息。");
+			}
+
+			namespace ItemQuickBar
+			{
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.ItemQuickBar.Changed", "物品快捷栏数据刷新后广播。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.ItemQuickBar.OperationFailed", "快捷栏请求被服务器拒绝后广播的失败消息。");
+			}
+
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(RedDotChanged, "Message.UI.RedDot.Changed", "红点节点状态变化时广播，Payload = FDORedDotChangedMessage。");
 
 			namespace Tutorial
