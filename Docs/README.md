@@ -27,11 +27,11 @@
 7. [06_Combat_Attribute_Design.md](06_Combat_Attribute_Design.md)  
    基于龙斗士原游戏的属性体系设计：一级属性、二级属性、伤害公式、宠物守护神、装备强化。
 
-8. [ProfessionAbilityConfigDesign.md](ProfessionAbilityConfigDesign.md)  
-   职业技能配置方案：一次性授予全部技能、用 Level 控制可用性。
+8. [07_Inventory_System_Design.md](07_Inventory_System_Design.md) - 参考原作双栏界面的背包、装备、快捷栏完整方案：数据资产、FastArray、GAS、CommonUI、存档与联机验证。
 
-9. [UE58_MCP_Notes.md](UE58_MCP_Notes.md)  
-   UE 5.8 内置 MCP 与 Toolset 插件说明。
+9. [ProfessionAbilityConfigDesign.md](ProfessionAbilityConfigDesign.md) - 职业技能配置方案：一次性授予全部技能、用 Level 控制可用性。
+
+10. [UE58_MCP_Notes.md](UE58_MCP_Notes.md) - UE 5.8 内置 MCP 与 Toolset 插件说明。
 
 ## 当前修正记录
 

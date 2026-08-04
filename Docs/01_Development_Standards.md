@@ -74,15 +74,21 @@ Source/DragonOath/
     AI/
     Boss/
     Spawning/
-  Equipment/
+  ItemSystem/
+    Core/
+    Inventory/
+    Equipment/
+    Usage/
+    QuickBar/
+    Pickup/
+    AbilitySystem/
+    Tests/
   Feedback/
     DamageNumbers/
     HitImpact/
   GameModes/
   Input/
   Interaction/
-  Inventory/
-  Items/
   Messages/
   Player/
   SaveGame/

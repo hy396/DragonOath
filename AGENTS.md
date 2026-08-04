@@ -53,6 +53,15 @@ Source/DragonOath/
     Attributes/     DOHealthSet, DOResourceSet, DOCombatSet
     Pipeline/       GameplayEffectContext
   Characters/       DOCharacter 基类（玩家/怪物通用）
+  ItemSystem/       物品领域：物品定义、背包、装备、道具使用、快捷栏、拾取与物品专属 GAS 桥接
+    Core/           DOItemDefinition、类型化属性与物品核心结构
+    Inventory/      DOInventoryComponent、库存 FastArray 与消息
+    Equipment/      DOEquipmentComponent、装备槽与装备事务
+    Usage/          消耗品使用类型与兼容效果
+    QuickBar/       快捷栏组件与 ViewModel
+    Pickup/         世界中的物品拾取 Actor
+    AbilitySystem/  物品专属 GE、Spec Builder 与复杂道具 Ability
+    Tests/          物品系统自动化测试
   Player/           DOPlayerState, DOPlayerCharacter, DOPlayerController
 ```
 

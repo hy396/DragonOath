@@ -446,7 +446,7 @@ WBP_DamageNumber_Debug
 ```text
 WBP_MainMenuScreen       -> UCommonActivatableWidget
 WBP_PauseScreen          -> UCommonActivatableWidget
-WBP_InventoryScreen      -> UCommonActivatableWidget
+UDOInventoryScreen       -> UCommonActivatableWidget + 原生 Slate 内容
 WBP_EquipmentScreen      -> UCommonActivatableWidget
 WBP_SkillTreeScreen      -> UCommonActivatableWidget
 WBP_SettingsScreen       -> UCommonActivatableWidget
