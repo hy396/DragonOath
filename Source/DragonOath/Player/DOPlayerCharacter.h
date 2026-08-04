@@ -10,6 +10,7 @@ class UInputComponent;
 class UInputMappingContext;
 class ULyraInputConfig;
 class ULyraInputComponent;
+class UDOInventoryPreviewComponent;
 struct FGameplayTag;
 struct FInputActionValue;
 
@@ -51,6 +52,8 @@ public:
 	virtual void UnPossessed() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	UDOInventoryPreviewComponent* GetInventoryPreviewComponent() const { return InventoryPreviewComponent; }
+
 protected:
 	// 玩家角色的 ASC 由 PlayerState 持有，避免重生或换 Pawn 时丢失技能和属性。
 	virtual void InitializeAbilitySystem() override;
@@ -91,6 +94,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<ULyraInputComponent> CachedLyraInputComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DO|UI", Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDOInventoryPreviewComponent> InventoryPreviewComponent;
 
 	TArray<uint32> AbilityInputBindHandles;
 	bool bDefaultInputMappingsAdded = false;

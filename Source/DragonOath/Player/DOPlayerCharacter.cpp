@@ -10,6 +10,7 @@
 #include "LyraInputComponent.h"
 #include "Player/DOPlayerController.h"
 #include "Player/DOPlayerState.h"
+#include "UI/Inventory/DOInventoryPreviewComponent.h"
 #include "SetlyGameplayTags.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 
@@ -34,6 +35,8 @@ ADOPlayerCharacter::ADOPlayerCharacter(const FObjectInitializer& ObjectInitializ
 
 	// 关闭引擎自带的“自动朝向移动方向”，我们自己控制转身逻辑
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+
+	InventoryPreviewComponent = CreateDefaultSubobject<UDOInventoryPreviewComponent>(TEXT("InventoryPreviewComponent"));
 }
 
 void ADOPlayerCharacter::InitializeAbilitySystem()
@@ -45,7 +48,8 @@ void ADOPlayerCharacter::InitializeAbilitySystem()
 	}
 
 	InitializeAbilitySystemComponent(DOPlayerState->GetDOAbilitySystemComponent(), DOPlayerState);
-
+	// 只有 ASC 完成 ActorInfo 初始化后，装备存档中的 GameplayEffect 才能安全恢复。
+	DOPlayerState->NotifyInventoryPersistenceReady();
 	// ASC 初始化后，由角色侧统一驱动职业就绪 + 技能授予（服务端执行，客户端经复制下发）
 	DOPlayerState->EnsureProfessionSet();
 }
@@ -265,5 +269,3 @@ void ADOPlayerCharacter::Input_Crouch(const FInputActionValue& /*InputActionValu
 		Crouch();
 	}
 }
-
-
