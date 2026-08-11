@@ -21,6 +21,7 @@ public class DragonOath : ModuleRules
 			"GameplayAbilities", "GameplayTags", "GameplayTasks",
 			"GameplayMessageRuntime",
 			"ModularGameplay",
+			"ModularGameplayActors",  // AModularPlayerController 的实现（PlayerTick/PreInitializeComponents 等），DOPlayerController 继承链 ASetlyPlayerController -> ACommonPlayerController -> AModularPlayerController 需要
 			"Setly",
 			"SharedCoolingAbility",  // 共享冷却（公共CD）插件：UDOAbilitySystemComponent 继承其 ISharedCoolingInterface，技能可继承 UGA_SharedCoolingBase
 			"Niagara", "NavigationSystem",

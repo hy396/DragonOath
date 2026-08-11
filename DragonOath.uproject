@@ -12,6 +12,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "LGUI",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [
