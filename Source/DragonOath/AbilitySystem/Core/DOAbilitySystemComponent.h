@@ -61,6 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DO|Ability")
 	void GiveDOAbilitySet(const UDOAbilitySet* AbilitySet);
 
+	/** 按装备/物品来源授予 Ability、GE 和 Tag，不写入职业 AbilityId 索引。 */
+	bool GiveDOAbilitySetForSource(const UDOAbilitySet* AbilitySet, UObject* SourceObject, FDOAbilitySetGrantedHandles& OutHandles);
+	void RemoveDOAbilitySet(const FDOAbilitySetGrantedHandles& Handles);
+
 	// 修改技能等级。必须在服务端调用。
 	// 0 -> 1+ 时自动激活 OnSpawn 被动技能；1+ -> 0 时取消正在运行的技能。
 	UFUNCTION(BlueprintCallable, Category = "DO|Ability")

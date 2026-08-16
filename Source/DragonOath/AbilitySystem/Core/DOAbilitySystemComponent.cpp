@@ -461,3 +461,94 @@ void UDOAbilitySystemComponent::ApplyDamageToTarget(TSubclassOf<UGameplayEffect>
 	// 吸血改为在 UDOHealthSet::PostGameplayEffectExecute 内用真实伤害 LocalDamage 计算
 	// （LifeStealRate * LocalDamage），仅服务端执行，数据正确且天然避免客户端双重回血。
 }
+
+bool UDOAbilitySystemComponent::GiveDOAbilitySetForSource(const UDOAbilitySet* AbilitySet, UObject* SourceObject, FDOAbilitySetGrantedHandles& OutHandles)
+{
+	OutHandles.Reset();
+	if (!AbilitySet || GetOwnerRole() != ROLE_Authority)
+	{
+		return false;
+	}
+
+	for (const FDOAbilityGrant& Grant : AbilitySet->GrantedAbilities)
+	{
+		if (!Grant.AbilityClass)
+		{
+			continue;
+		}
+
+		FGameplayAbilitySpec Spec(Grant.AbilityClass, FMath::Max(0, Grant.InitialLevel), INDEX_NONE, SourceObject);
+		if (Grant.InputTag.IsValid())
+		{
+			Spec.GetDynamicSpecSourceTags().AddTag(Grant.InputTag);
+		}
+		const FGameplayAbilitySpecHandle Handle = GiveAbility(Spec);
+		if (Handle.IsValid())
+		{
+			OutHandles.AbilitySpecHandles.Add(Handle);
+		}
+	}
+
+	if (AbilitySet->GrantedTags.Num() > 0)
+	{
+		AddLooseGameplayTags(AbilitySet->GrantedTags, 1, EGameplayTagReplicationState::TagOnly);
+		OutHandles.GrantedTags = AbilitySet->GrantedTags;
+	}
+
+	for (const FDOGameplayEffectGrant& Grant : AbilitySet->GrantedGameplayEffects)
+	{
+		if (!Grant.GameplayEffectClass)
+		{
+			continue;
+		}
+
+		FGameplayEffectContextHandle EffectContext = MakeEffectContext();
+		EffectContext.AddSourceObject(SourceObject ? SourceObject : this);
+		const FGameplayEffectSpecHandle SpecHandle = MakeOutgoingSpec(Grant.GameplayEffectClass, Grant.Level, EffectContext);
+		if (!SpecHandle.IsValid() || !SpecHandle.Data.IsValid())
+		{
+			continue;
+		}
+
+		const FActiveGameplayEffectHandle EffectHandle = ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		if (EffectHandle.WasSuccessfullyApplied())
+		{
+			OutHandles.GameplayEffectHandles.Add(EffectHandle);
+		}
+	}
+
+	return OutHandles.AbilitySpecHandles.Num() > 0
+		|| OutHandles.GameplayEffectHandles.Num() > 0
+		|| OutHandles.GrantedTags.Num() > 0
+		|| (AbilitySet->GrantedAbilities.Num() == 0 && AbilitySet->GrantedGameplayEffects.Num() == 0 && AbilitySet->GrantedTags.Num() == 0);
+}
+
+void UDOAbilitySystemComponent::RemoveDOAbilitySet(const FDOAbilitySetGrantedHandles& Handles)
+{
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return;
+	}
+
+	for (const FGameplayAbilitySpecHandle& Handle : Handles.AbilitySpecHandles)
+	{
+		if (FGameplayAbilitySpec* Spec = FindAbilitySpecFromHandle(Handle))
+		{
+			if (Spec->IsActive())
+			{
+				CancelAbilityHandle(Handle);
+			}
+		}
+		ClearAbility(Handle);
+	}
+
+	for (const FActiveGameplayEffectHandle& Handle : Handles.GameplayEffectHandles)
+	{
+		RemoveActiveGameplayEffect(Handle);
+	}
+
+	if (Handles.GrantedTags.Num() > 0)
+	{
+		RemoveLooseGameplayTags(Handles.GrantedTags, 1, EGameplayTagReplicationState::TagOnly);
+	}
+}

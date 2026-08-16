@@ -103,6 +103,15 @@ namespace DragonOathGameplayTags
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Accessory);
 			DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weapon);
 		}
+
+		namespace Appearance
+		{
+			namespace Variant
+			{
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ruby);
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Sapphire);
+			}
+		}
 	}
 
 	// 伤害类型与标记（用于 ExecutionCalculation 区分伤害来源与吸血）
@@ -252,18 +261,22 @@ namespace DragonOathGameplayTags
 			{
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Changed);
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationFailed);
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationResult);
 			}
 
 			namespace Equipment
 			{
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Changed);
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationFailed);
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationResult);
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(PresentationChanged);
 			}
 
 			namespace ItemQuickBar
 			{
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Changed);
 				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationFailed);
+				DRAGONOATH_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OperationResult);
 			}
 
 			// 红点系统：某节点状态变化时广播，Payload = FDORedDotChangedMessage

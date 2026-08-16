@@ -81,10 +81,16 @@ namespace DragonOathGameplayTags
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Hands, "Equipment.Slot.Hands", "手部装备槽。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Legs, "Equipment.Slot.Legs", "腿部装备槽。");
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Feet, "Equipment.Slot.Feet", "脚部装备槽。");
-			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Accessory, "Equipment.Slot.Accessory", "饰品装备槽。");
-			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Weapon, "Equipment.Slot.Weapon", "武器装备槽。");
-		}
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Accessory, "Equipment.Slot.Accessory", "饰品装备槽。");
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Weapon, "Equipment.Slot.Weapon", "武器装备槽。");
 	}
+
+	namespace Appearance::Variant
+	{
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ruby, "Equipment.Appearance.Variant.Ruby", "红色外观变体。");
+		UE_DEFINE_GAMEPLAY_TAG_COMMENT(Sapphire, "Equipment.Appearance.Variant.Sapphire", "蓝色外观变体。");
+	}
+}
 
 	namespace Damage
 	{
@@ -164,18 +170,21 @@ namespace DragonOathGameplayTags
 			{
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.Inventory.Changed", "背包数据在本地完成刷新后广播。");
 				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.Inventory.OperationFailed", "背包服务器操作失败后广播。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationResult, "Message.UI.Inventory.OperationResult", "背包服务器操作完成、失败、无变化或取消后的统一回执。");
 			}
 
 			namespace Equipment
 			{
 				UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.Equipment.Changed", "装备数据在本地完成刷新后广播。");
 				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.Equipment.OperationFailed", "装备请求被服务器拒绝后广播的失败消息。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationResult, "Message.UI.Equipment.OperationResult", "装备服务器操作完成、失败、无变化或取消后的统一回执。");
 			}
 
 			namespace ItemQuickBar
 			{
 				UE_DEFINE_GAMEPLAY_TAG_COMMENT(Changed, "Message.UI.ItemQuickBar.Changed", "物品快捷栏数据刷新后广播。");
 				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationFailed, "Message.UI.ItemQuickBar.OperationFailed", "快捷栏请求被服务器拒绝后广播的失败消息。");
+				UE_DEFINE_GAMEPLAY_TAG_COMMENT(OperationResult, "Message.UI.ItemQuickBar.OperationResult", "快捷栏服务器操作完成、失败、无变化或取消后的统一回执。");
 			}
 
 			UE_DEFINE_GAMEPLAY_TAG_COMMENT(RedDotChanged, "Message.UI.RedDot.Changed", "红点节点状态变化时广播，Payload = FDORedDotChangedMessage。");
