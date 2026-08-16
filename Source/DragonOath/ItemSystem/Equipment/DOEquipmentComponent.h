@@ -4,10 +4,15 @@
 #include "GameplayEffectTypes.h"
 
 #include "ItemSystem/Equipment/DOEquipmentTypes.h"
+#include "ItemSystem/Equipment/DOEquipmentInstance.h"
+#include "ItemSystem/Core/DOItemOperationTypes.h"
 
 #include "DOEquipmentComponent.generated.h"
 
 class UGameplayEffect;
+class UDOItemDefinition;
+class UDOItemFragment_Equipment;
+class UDOEquipmentLayout;
 
 /**
  * 玩家装备组件。
@@ -26,6 +31,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	void GetEquippedSnapshot(TArray<FDOEquippedItemEntry>& OutEntries) const;
+	void GetSupportedSlotTags(TArray<FGameplayTag>& OutSlotTags) const;
 
 	/** 校验一份装备存档快照，不修改当前装备状态。 */
 	bool ValidateEquippedSnapshot(const TArray<FDOEquippedItemEntry>& Entries) const;
@@ -34,6 +40,10 @@ public:
 	bool RestoreEquippedSnapshot(const TArray<FDOEquippedItemEntry>& Entries);
 
 	const FDOEquippedItemEntry* FindEquippedBySlot(const FGameplayTag& SlotTag) const;
+	const UDOEquipmentInstance* FindEquipmentInstance(const FGameplayTag& SlotTag) const;
+
+	/** 服务器将当前装备转换为 Pawn 级公开外观摘要；重生/重新 Possess 后可重复调用。 */
+	void RebuildPublicPresentation();
 
 	UFUNCTION(BlueprintPure, Category = "DO|Equipment")
 	bool IsSlotEquipped(FGameplayTag SlotTag) const;
@@ -45,6 +55,10 @@ public:
 	void RequestUnequipItem(FGameplayTag SlotTag, int32 ClientOperationId);
 
 	int32 GetRevision() const { return Revision; }
+	const UDOEquipmentLayout* GetEquipmentLayout() const { return EquipmentLayout; }
+
+	/** 服务器更新已穿戴装备耐久；归零时撤销属性和装备技能，修复后自动重建。 */
+	bool SetEquippedDurability(FGameplayTag SlotTag, int32 NewDurability);
 
 	void HandleFastArrayChanged(const TArray<FGameplayTag>& ChangedSlotTags);
 
@@ -60,8 +74,11 @@ protected:
 	UFUNCTION(Client, Reliable)
 	void Client_EquipmentOperationResult(int32 ClientOperationId, bool bSuccess, EDOInventoryFailureReason FailureReason);
 
+	UFUNCTION(Client, Reliable)
+	void Client_EquipmentOperationResultEx(int32 ClientOperationId, EDOItemOperationOutcome Outcome, EDOInventoryFailureReason FailureReason, int32 AuthoritativeRevision);
+
 	/** 旧配置兼容入口。新方案默认使用 C++ 原生 UDOEquipmentAttributeEffect，迁移完成后删除。 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Equipment|Legacy", meta = (DeprecatedProperty, DeprecationMessage = "装备属性 GE 已由 C++ 原生模板提供。"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Equipment|Legacy", meta = (DeprecatedProperty, DeprecationMessage = "装备属性 GE 已由 C++ 原生模板提供。", DisplayName = "旧版装备属性效果"))
 	TSubclassOf<UGameplayEffect> EquipmentAttributeEffect;
 
 private:
@@ -69,11 +86,16 @@ private:
 
 	const UDOItemDefinition* ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const;
 	bool ValidateEquipment(const FDOItemInstanceRecord& Item, const UDOItemFragment_Equipment*& OutFragment) const;
-	bool ApplyEquipmentEffect(const FDOItemInstanceRecord& Item, const UDOItemFragment_Equipment& Fragment, FActiveGameplayEffectHandle& OutHandle);
+	bool IsEquipmentRuntimeActive(const FDOItemInstanceRecord& Item, const UDOItemFragment_Equipment& Fragment) const;
+	bool IsSlotConfigured(const FGameplayTag& SlotTag) const;
+	bool ApplyEquipmentEffect(const FDOItemInstanceRecord& Item, const UDOItemFragment_Equipment& Fragment, UObject* SourceObject, FActiveGameplayEffectHandle& OutHandle);
 	void RemoveEquipmentEffect(const FGameplayTag& SlotTag);
 	bool RestoreEquipmentEffect(const FDOItemInstanceRecord& Item, const FGameplayTag& SlotTag);
-	void BroadcastChanged(const TArray<FGameplayTag>& ChangedSlotTags);
+	bool GrantEquipmentAbilities(UDOEquipmentInstance& Instance, const UDOItemFragment_Equipment& Fragment);
+	void RemoveEquipmentInstanceFromAbilitySystem(UDOEquipmentInstance& Instance);
+	void BroadcastChanged(const TArray<FGameplayTag>& ChangedSlotTags, bool bAdvanceRevision = true);
 	void BroadcastOperationFailure(int32 ClientOperationId, EDOInventoryFailureReason FailureReason);
+	void BroadcastOperationResult(int32 ClientOperationId, EDOItemOperationOutcome Outcome, EDOInventoryFailureReason FailureReason, int32 AuthoritativeRevision = INDEX_NONE);
 
 	UPROPERTY(Replicated)
 	int32 Revision = 0;
@@ -81,5 +103,9 @@ private:
 	UPROPERTY(Replicated)
 	FDOEquipmentList EquipmentList;
 
-	TMap<FGameplayTag, FActiveGameplayEffectHandle> ActiveEquipmentEffects;
+	UPROPERTY(EditDefaultsOnly, Category = "DO|Equipment|Layout", meta = (DisplayName = "装备布局"))
+	TObjectPtr<UDOEquipmentLayout> EquipmentLayout;
+
+	UPROPERTY(Transient)
+	TMap<FGameplayTag, TObjectPtr<UDOEquipmentInstance>> EquipmentInstances;
 };

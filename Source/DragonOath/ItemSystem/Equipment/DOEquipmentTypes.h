@@ -39,6 +39,9 @@ struct DRAGONOATH_API FDOEquipmentList : public FFastArraySerializer
 	UPROPERTY(NotReplicated)
 	TObjectPtr<UDOEquipmentComponent> OwnerComponent = nullptr;
 
+	/** 接收端聚合的槽位，删除前缓存 SlotTag。 */
+	TArray<FGameplayTag> PendingChangedSlotTags;
+
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParams)
 	{
 		return FFastArraySerializer::FastArrayDeltaSerialize<FDOEquippedItemEntry, FDOEquipmentList>(Entries, DeltaParams, *this);
@@ -46,7 +49,8 @@ struct DRAGONOATH_API FDOEquipmentList : public FFastArraySerializer
 
 	void PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize);
 	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
-	void PostReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize);
+	void PreReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize);
+	void PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters);
 };
 
 template<>

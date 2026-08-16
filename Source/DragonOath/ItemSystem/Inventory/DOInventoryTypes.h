@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Net/Serialization/FastArraySerializer.h"
 
-#include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemInstanceTypes.h"
 
 #include "DOInventoryTypes.generated.h"
 
@@ -28,52 +28,6 @@ enum class EDOInventoryFailureReason : uint8
 	Locked,
 	RequirementFailed,
 	Unknown
-};
-
-/** 第一版保留的动态词缀结构，暂不生成随机词缀。 */
-USTRUCT(BlueprintType)
-struct DRAGONOATH_API FDOItemAffixRoll
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FGameplayTag AffixTag;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Magnitude = 0.0f;
-};
-
-/** 一个背包堆栈就是一个稳定的运行时实例。 */
-USTRUCT(BlueprintType)
-struct DRAGONOATH_API FDOItemInstanceRecord
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadOnly)
-	FGuid InstanceId;
-
-	UPROPERTY(BlueprintReadOnly)
-	FPrimaryAssetId DefinitionId;
-
-	UPROPERTY(BlueprintReadOnly)
-	int32 StackCount = 1;
-
-	UPROPERTY(BlueprintReadOnly)
-	int32 SlotIndex = INDEX_NONE;
-
-	UPROPERTY(BlueprintReadOnly)
-	int32 UpgradeLevel = 0;
-
-	UPROPERTY(BlueprintReadOnly)
-	int32 CurrentDurability = 0;
-
-	UPROPERTY(BlueprintReadOnly)
-	TArray<FDOItemAffixRoll> Affixes;
-
-	bool IsValid() const
-	{
-		return InstanceId.IsValid() && DefinitionId.IsValid() && StackCount > 0;
-	}
 };
 
 /** FastArray 中的单条背包记录。 */
@@ -102,6 +56,9 @@ struct DRAGONOATH_API FDOInventoryList : public FFastArraySerializer
 	UPROPERTY(NotReplicated)
 	TObjectPtr<UDOInventoryComponent> OwnerComponent = nullptr;
 
+	/** 接收端在一次 NetDeltaSerialize 内聚合的 ID，删除前必须先缓存。 */
+	TArray<FGuid> PendingChangedInstanceIds;
+
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParams)
 	{
 		return FFastArraySerializer::FastArrayDeltaSerialize<FDOInventoryEntry, FDOInventoryList>(Entries, DeltaParams, *this);
@@ -109,7 +66,8 @@ struct DRAGONOATH_API FDOInventoryList : public FFastArraySerializer
 
 	void PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize);
 	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
-	void PostReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize);
+	void PreReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize);
+	void PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters);
 };
 
 template<>
@@ -156,4 +114,10 @@ struct DRAGONOATH_API FDOInventoryOperationResult
 
 	UPROPERTY(BlueprintReadOnly)
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 AuthoritativeRevision = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	uint8 Outcome = 0;
 };

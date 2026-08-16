@@ -111,16 +111,7 @@ EDataValidationResult UDOItemDefinition::IsDataValid(FDataValidationContext& Con
 
 		if (const UDOItemFragment_Equipment* EquipmentFragment = Cast<UDOItemFragment_Equipment>(Fragment))
 		{
-			const bool bIsValidEquipmentSlot =
-				EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Head
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Shoulder
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Back
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Chest
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Hands
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Legs
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Feet
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Accessory
-				|| EquipmentFragment->EquipmentSlotTag == DragonOathGameplayTags::Equipment::Slot::Weapon;
+			const bool bIsValidEquipmentSlot = EquipmentFragment->EquipmentSlotTag.IsValid();
 
 			if (bHasEquipmentFragment
 				|| ItemType != DragonOathGameplayTags::Item::Type::Equipment

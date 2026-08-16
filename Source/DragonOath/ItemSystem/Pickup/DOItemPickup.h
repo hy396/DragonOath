@@ -33,14 +33,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DO|Inventory|Pickup")
 	void SetPickupData(FPrimaryAssetId InDefinitionId, int32 InCount);
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "DO|Inventory|Pickup")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "DO|Inventory|Pickup", meta = (DisplayName = "物品定义 ID"))
 	FPrimaryAssetId ItemDefinitionId;
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "DO|Inventory|Pickup", meta = (ClampMin = "1"))
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "DO|Inventory|Pickup", meta = (ClampMin = "1", DisplayName = "剩余数量"))
 	int32 RemainingCount = 1;
 
 	/** 手动拾取请求允许的最大距离；自动重叠拾取也经过同一项服务器校验。 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Inventory|Pickup", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Inventory|Pickup", meta = (ClampMin = "1.0", DisplayName = "拾取交互距离"))
 	float PickupInteractionDistance = 200.0f;
 
 protected:

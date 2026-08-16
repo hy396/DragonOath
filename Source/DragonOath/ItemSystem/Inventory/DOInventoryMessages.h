@@ -4,10 +4,12 @@
 #include "GameplayTagContainer.h"
 
 #include "ItemSystem/Inventory/DOInventoryTypes.h"
+#include "ItemSystem/Core/DOItemOperationTypes.h"
 
 #include "DOInventoryMessages.generated.h"
 
 class UDOEquipmentComponent;
+class UDOEquipmentPresentationComponent;
 class UDOInventoryComponent;
 class UDOItemQuickBarComponent;
 
@@ -72,6 +74,18 @@ struct DRAGONOATH_API FDOInventoryOperationFailedMessage
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::Unknown;
 };
 
+USTRUCT(BlueprintType)
+struct DRAGONOATH_API FDOInventoryOperationResultMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UDOInventoryComponent> InventoryComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly)
+	FDOItemOperationResult Result;
+};
+
 /** 装备请求失败消息，用于让客户端清理装备操作的 Pending 状态。 */
 USTRUCT(BlueprintType)
 struct DRAGONOATH_API FDOEquipmentOperationFailedMessage
@@ -88,6 +102,34 @@ struct DRAGONOATH_API FDOEquipmentOperationFailedMessage
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::Unknown;
 };
 
+USTRUCT(BlueprintType)
+struct DRAGONOATH_API FDOEquipmentOperationResultMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UDOEquipmentComponent> EquipmentComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly)
+	FDOItemOperationResult Result;
+};
+
+/** Pawn 上公开装备外观摘要变更消息，不包含完整装备实例数据。 */
+USTRUCT(BlueprintType)
+struct DRAGONOATH_API FDOEquipmentPresentationChangedMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UDOEquipmentPresentationComponent> PresentationComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FGameplayTag> ChangedSlotTags;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 Revision = 0;
+};
+
 /** 快捷栏请求失败消息，用于让快捷栏 UI 清理 Pending 状态。 */
 USTRUCT(BlueprintType)
 struct DRAGONOATH_API FDOItemQuickBarOperationFailedMessage
@@ -102,4 +144,16 @@ struct DRAGONOATH_API FDOItemQuickBarOperationFailedMessage
 
 	UPROPERTY(BlueprintReadOnly)
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::Unknown;
+};
+
+USTRUCT(BlueprintType)
+struct DRAGONOATH_API FDOItemQuickBarOperationResultMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UDOItemQuickBarComponent> QuickBarComponent = nullptr;
+
+	UPROPERTY(BlueprintReadOnly)
+	FDOItemOperationResult Result;
 };

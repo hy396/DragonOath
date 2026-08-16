@@ -4,13 +4,14 @@
 #include "AbilitySystem/Core/DOGameplayTag.h"
 #include "ItemSystem/AbilitySystem/DOItemEffectSpecBuilder.h"
 #include "Abilities/GameplayAbilityTypes.h"
-#include "Engine/AssetManager.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "ItemSystem/Equipment/DOEquipmentComponent.h"
 #include "ItemSystem/Inventory/DOInventoryMessages.h"
+#include "ItemSystem/Inventory/DOInventorySortConfig.h"
 #include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemDefinitionSubsystem.h"
 #include "ItemSystem/Usage/DOItemUseTypes.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/DOPlayerState.h"
@@ -27,21 +28,19 @@ namespace
 
 	int32 RaritySortValue(const FGameplayTag& Rarity)
 	{
-		const FString Name = Rarity.ToString();
-		if (Name.EndsWith(TEXT("Legendary"))) return 5;
-		if (Name.EndsWith(TEXT("Epic"))) return 4;
-		if (Name.EndsWith(TEXT("Rare"))) return 3;
-		if (Name.EndsWith(TEXT("Uncommon"))) return 2;
+		if (Rarity == DragonOathGameplayTags::Item::Rarity::Legendary) return 5;
+		if (Rarity == DragonOathGameplayTags::Item::Rarity::Epic) return 4;
+		if (Rarity == DragonOathGameplayTags::Item::Rarity::Rare) return 3;
+		if (Rarity == DragonOathGameplayTags::Item::Rarity::Uncommon) return 2;
 		return 1;
 	}
 
 	int32 ItemTypeSortValue(const FGameplayTag& ItemType)
 	{
-		const FString Name = ItemType.ToString();
-		if (Name.EndsWith(TEXT("Equipment"))) return 0;
-		if (Name.EndsWith(TEXT("Consumable"))) return 1;
-		if (Name.EndsWith(TEXT("Material"))) return 2;
-		if (Name.EndsWith(TEXT("Quest"))) return 3;
+		if (ItemType == DragonOathGameplayTags::Item::Type::Equipment) return 0;
+		if (ItemType == DragonOathGameplayTags::Item::Type::Consumable) return 1;
+		if (ItemType == DragonOathGameplayTags::Item::Type::Material) return 2;
+		if (ItemType == DragonOathGameplayTags::Item::Type::Quest) return 3;
 		return 4;
 	}
 
@@ -88,46 +87,44 @@ namespace
 
 void FDOInventoryList::PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 /*FinalSize*/)
 {
-	if (!OwnerComponent)
-	{
-		return;
-	}
-
-	TArray<FGuid> ChangedIds;
 	for (const int32 Index : AddedIndices)
 	{
 		if (Entries.IsValidIndex(Index))
 		{
-			ChangedIds.Add(Entries[Index].Item.InstanceId);
+			PendingChangedInstanceIds.AddUnique(Entries[Index].Item.InstanceId);
 		}
 	}
-	OwnerComponent->HandleFastArrayChanged(ChangedIds);
 }
 
 void FDOInventoryList::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 /*FinalSize*/)
 {
-	if (!OwnerComponent)
-	{
-		return;
-	}
-
-	TArray<FGuid> ChangedIds;
 	for (const int32 Index : ChangedIndices)
 	{
 		if (Entries.IsValidIndex(Index))
 		{
-			ChangedIds.Add(Entries[Index].Item.InstanceId);
+			PendingChangedInstanceIds.AddUnique(Entries[Index].Item.InstanceId);
 		}
 	}
-	OwnerComponent->HandleFastArrayChanged(ChangedIds);
 }
 
-void FDOInventoryList::PostReplicatedRemove(const TArrayView<int32>& /*RemovedIndices*/, int32 /*FinalSize*/)
+void FDOInventoryList::PreReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 /*FinalSize*/)
 {
-	if (OwnerComponent)
+	for (const int32 Index : RemovedIndices)
 	{
-		OwnerComponent->HandleFastArrayChanged({});
+		if (Entries.IsValidIndex(Index))
+		{
+			PendingChangedInstanceIds.AddUnique(Entries[Index].Item.InstanceId);
+		}
 	}
+}
+
+void FDOInventoryList::PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& /*Parameters*/)
+{
+	if (OwnerComponent && PendingChangedInstanceIds.Num() > 0)
+	{
+		OwnerComponent->HandleFastArrayChanged(PendingChangedInstanceIds);
+	}
+	PendingChangedInstanceIds.Reset();
 }
 
 UDOInventoryComponent::UDOInventoryComponent(const FObjectInitializer& ObjectInitializer)
@@ -236,7 +233,6 @@ bool UDOInventoryComponent::RestoreInventorySnapshot(const TArray<FDOItemInstanc
 	}
 
 	InventoryList.MarkArrayDirty();
-	++Revision;
 	BroadcastChanged(ChangedIds);
 	return true;
 }
@@ -267,19 +263,7 @@ FDOItemInstanceRecord* UDOInventoryComponent::FindItemByInstanceId(const FGuid& 
 
 UDOItemDefinition* UDOInventoryComponent::ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const
 {
-	if (!DefinitionId.IsValid())
-	{
-		return nullptr;
-	}
-
-	UAssetManager& AssetManager = UAssetManager::Get();
-	if (UDOItemDefinition* LoadedDefinition = AssetManager.GetPrimaryAssetObject<UDOItemDefinition>(DefinitionId))
-	{
-		return LoadedDefinition;
-	}
-
-	const FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(DefinitionId);
-	return AssetPath.IsValid() ? Cast<UDOItemDefinition>(AssetPath.TryLoad()) : nullptr;
+	return const_cast<UDOItemDefinition*>(UDOItemDefinitionSubsystem::ResolveItemDefinition(this, DefinitionId));
 }
 
 int32 UDOInventoryComponent::FindEntryIndexBySlot(const int32 SlotIndex) const
@@ -314,7 +298,6 @@ bool UDOInventoryComponent::IsValidSlot(const int32 SlotIndex) const
 void UDOInventoryComponent::MarkEntryDirty(FDOInventoryEntry& Entry)
 {
 	InventoryList.MarkItemDirty(Entry);
-	++Revision;
 }
 
 FDOInventoryAddResult UDOInventoryComponent::TryAddItem(const FPrimaryAssetId& DefinitionId, const int32 Count)
@@ -406,7 +389,6 @@ FDOInventoryAddResult UDOInventoryComponent::TryAddItem(const FPrimaryAssetId& D
 		Result.RemainingCount -= NewEntry.Item.StackCount;
 		ChangedIds.Add(NewEntry.Item.InstanceId);
 		InventoryList.MarkItemDirty(NewEntry);
-		++Revision;
 	}
 
 	Result.FailureReason = Result.RemainingCount > 0
@@ -451,7 +433,6 @@ bool UDOInventoryComponent::TryConsumeItem(const FGuid& InstanceId, const int32 
 		{
 			InventoryList.Entries.RemoveAt(Index);
 			InventoryList.MarkArrayDirty();
-			++Revision;
 		}
 		else
 		{
@@ -512,7 +493,6 @@ bool UDOInventoryComponent::TryRemoveItemByInstanceId(const FGuid& InstanceId, F
 			OutRemovedItem = InventoryList.Entries[Index].Item;
 			InventoryList.Entries.RemoveAt(Index);
 			InventoryList.MarkArrayDirty();
-			++Revision;
 			BroadcastChanged({ InstanceId });
 			return true;
 		}
@@ -596,7 +576,6 @@ bool UDOInventoryComponent::TryInsertExistingItem(const FDOItemInstanceRecord& I
 	NewEntry.Item = Item;
 	NewEntry.Item.SlotIndex = EmptySlot;
 	InventoryList.MarkItemDirty(NewEntry);
-	++Revision;
 	BroadcastChanged({ Item.InstanceId });
 	return true;
 }
@@ -676,7 +655,6 @@ bool UDOInventoryComponent::TryMoveItemInternal(const FGuid& InstanceId, const i
 			const FGuid RemovedId = SourceItem->InstanceId;
 			InventoryList.Entries.RemoveAt(SourceIndex);
 			InventoryList.MarkArrayDirty();
-			++Revision;
 			OutChangedIds.Add(RemovedId);
 		}
 		else
@@ -738,7 +716,6 @@ bool UDOInventoryComponent::TrySplitStackInternal(const FGuid& InstanceId, const
 	NewEntry.Item.StackCount = SplitCount;
 	NewEntry.Item.SlotIndex = TargetSlot;
 	InventoryList.MarkItemDirty(NewEntry);
-	++Revision;
 	OutChangedIds.Add(SourceId);
 	OutChangedIds.Add(NewEntry.Item.InstanceId);
 	return true;
@@ -765,17 +742,34 @@ bool UDOInventoryComponent::TrySortInventory(EDOInventoryFailureReason& OutFailu
 		const FDOItemInstanceRecord& ItemB = InventoryList.Entries[B].Item;
 		const UDOItemDefinition* DefinitionA = ResolveItemDefinition(ItemA.DefinitionId);
 		const UDOItemDefinition* DefinitionB = ResolveItemDefinition(ItemB.DefinitionId);
-		const int32 TypeA = DefinitionA ? ItemTypeSortValue(DefinitionA->ItemType) : 4;
-		const int32 TypeB = DefinitionB ? ItemTypeSortValue(DefinitionB->ItemType) : 4;
+		const int32 TypeA = DefinitionA
+			? (SortConfig ? SortConfig->GetItemTypeWeight(DefinitionA->ItemType, ItemTypeSortValue(DefinitionA->ItemType)) : ItemTypeSortValue(DefinitionA->ItemType))
+			: 4;
+		const int32 TypeB = DefinitionB
+			? (SortConfig ? SortConfig->GetItemTypeWeight(DefinitionB->ItemType, ItemTypeSortValue(DefinitionB->ItemType)) : ItemTypeSortValue(DefinitionB->ItemType))
+			: 4;
 		if (TypeA != TypeB) return TypeA < TypeB;
+		const int32 PriorityA = DefinitionA ? DefinitionA->SortPriority : 0;
+		const int32 PriorityB = DefinitionB ? DefinitionB->SortPriority : 0;
+		if (PriorityA != PriorityB) return PriorityA > PriorityB;
 
 		const UDOItemFragment_Equipment* EquipmentA = DefinitionA ? DefinitionA->FindFragment<UDOItemFragment_Equipment>() : nullptr;
 		const UDOItemFragment_Equipment* EquipmentB = DefinitionB ? DefinitionB->FindFragment<UDOItemFragment_Equipment>() : nullptr;
-		const int32 SlotA = EquipmentSlotSortValue(EquipmentA ? EquipmentA->EquipmentSlotTag : FGameplayTag());
-		const int32 SlotB = EquipmentSlotSortValue(EquipmentB ? EquipmentB->EquipmentSlotTag : FGameplayTag());
+		const FGameplayTag SlotTagA = EquipmentA ? EquipmentA->EquipmentSlotTag : FGameplayTag();
+		const FGameplayTag SlotTagB = EquipmentB ? EquipmentB->EquipmentSlotTag : FGameplayTag();
+		const int32 SlotA = SortConfig
+			? SortConfig->GetEquipmentSlotWeight(SlotTagA, EquipmentSlotSortValue(SlotTagA))
+			: EquipmentSlotSortValue(SlotTagA);
+		const int32 SlotB = SortConfig
+			? SortConfig->GetEquipmentSlotWeight(SlotTagB, EquipmentSlotSortValue(SlotTagB))
+			: EquipmentSlotSortValue(SlotTagB);
 		if (SlotA != SlotB) return SlotA < SlotB;
-		const int32 RarityA = DefinitionA ? RaritySortValue(DefinitionA->Rarity) : 0;
-		const int32 RarityB = DefinitionB ? RaritySortValue(DefinitionB->Rarity) : 0;
+		const int32 RarityA = DefinitionA
+			? (SortConfig ? SortConfig->GetRarityWeight(DefinitionA->Rarity, RaritySortValue(DefinitionA->Rarity)) : RaritySortValue(DefinitionA->Rarity))
+			: 0;
+		const int32 RarityB = DefinitionB
+			? (SortConfig ? SortConfig->GetRarityWeight(DefinitionB->Rarity, RaritySortValue(DefinitionB->Rarity)) : RaritySortValue(DefinitionB->Rarity))
+			: 0;
 		if (RarityA != RarityB) return RarityA > RarityB;
 		const int32 RequiredLevelA = EquipmentA ? EquipmentA->RequiredLevel : 0;
 		const int32 RequiredLevelB = EquipmentB ? EquipmentB->RequiredLevel : 0;
@@ -998,7 +992,8 @@ bool UDOInventoryComponent::ApplyDirectConsumableEffect(
 bool UDOInventoryComponent::BeginComplexConsumableUse(
 	const FDOItemInstanceRecord& Item,
 	const UDOItemFragment_Consumable& Fragment,
-	EDOInventoryFailureReason& OutFailureReason)
+	EDOInventoryFailureReason& OutFailureReason,
+	const int32 ClientOperationId)
 {
 	OutFailureReason = EDOInventoryFailureReason::None;
 	ADOPlayerState* PlayerState = Cast<ADOPlayerState>(GetOwner());
@@ -1012,6 +1007,11 @@ bool UDOInventoryComponent::BeginComplexConsumableUse(
 	UDOItemUseContext* Context = NewObject<UDOItemUseContext>(this);
 	Context->InstanceId = Item.InstanceId;
 	Context->DefinitionId = Item.DefinitionId;
+	Context->ClientOperationId = ClientOperationId;
+	if (ClientOperationId > 0)
+	{
+		PendingComplexConsumableOperations.Add(ClientOperationId);
+	}
 
 	FGameplayEventData EventData;
 	EventData.Instigator = PlayerState->GetPawn();
@@ -1027,6 +1027,10 @@ bool UDOInventoryComponent::BeginComplexConsumableUse(
 		{
 			return true;
 		}
+		if (ClientOperationId > 0)
+		{
+			PendingComplexConsumableOperations.Remove(ClientOperationId);
+		}
 		OutFailureReason = EDOInventoryFailureReason::NotAllowed;
 		return false;
 	}
@@ -1038,13 +1042,21 @@ bool UDOInventoryComponent::BeginComplexConsumableUse(
 		return true;
 	}
 
+	if (ClientOperationId > 0)
+	{
+		PendingComplexConsumableOperations.Remove(ClientOperationId);
+	}
 	OutFailureReason = EDOInventoryFailureReason::NotAllowed;
 	return false;
 }
 
-bool UDOInventoryComponent::TryUseItemInternal(const FDOItemInstanceRecord& Item, EDOInventoryFailureReason& OutFailureReason)
+bool UDOInventoryComponent::TryUseItemInternal(const FDOItemInstanceRecord& Item, EDOInventoryFailureReason& OutFailureReason, const int32 ClientOperationId, bool* bOutDeferredCompletion)
 {
 	OutFailureReason = EDOInventoryFailureReason::None;
+	if (bOutDeferredCompletion)
+	{
+		*bOutDeferredCompletion = false;
+	}
 	const UDOItemDefinition* Definition = ResolveItemDefinition(Item.DefinitionId);
 	const UDOItemFragment_Consumable* Fragment = Definition ? Definition->FindFragment<UDOItemFragment_Consumable>() : nullptr;
 	if (!Fragment || !CanUseConsumable(Item, *Fragment, OutFailureReason))
@@ -1057,7 +1069,11 @@ bool UDOInventoryComponent::TryUseItemInternal(const FDOItemInstanceRecord& Item
 		|| (Fragment->EffectKind == EDOConsumableEffectKind::None && (Fragment->UseGameplayAbility || Fragment->UseEventTag.IsValid())))
 	{
 		// 复杂流程不会在 Ability/Event 刚启动时扣除，最终由 CommitConsumableUse 提交。
-		return BeginComplexConsumableUse(Item, *Fragment, OutFailureReason);
+		if (bOutDeferredCompletion)
+		{
+			*bOutDeferredCompletion = true;
+		}
+		return BeginComplexConsumableUse(Item, *Fragment, OutFailureReason, ClientOperationId);
 	}
 
 	FActiveGameplayEffectHandle CooldownHandle;
@@ -1104,12 +1120,19 @@ bool UDOInventoryComponent::TryUseItemInternal(const FDOItemInstanceRecord& Item
 	return true;
 }
 
-bool UDOInventoryComponent::CommitConsumableUse(const FGuid& InstanceId, const FPrimaryAssetId& ExpectedDefinitionId, EDOInventoryFailureReason& OutFailureReason)
+bool UDOInventoryComponent::CommitConsumableUse(const FGuid& InstanceId, const FPrimaryAssetId& ExpectedDefinitionId, EDOInventoryFailureReason& OutFailureReason, const int32 ClientOperationId)
 {
 	OutFailureReason = EDOInventoryFailureReason::None;
 	if (!IsServerComponent(this))
 	{
 		OutFailureReason = EDOInventoryFailureReason::NotOwner;
+		if (ClientOperationId > 0) Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
+		return false;
+	}
+	if (ClientOperationId > 0 && !PendingComplexConsumableOperations.Contains(ClientOperationId))
+	{
+		OutFailureReason = EDOInventoryFailureReason::NotAllowed;
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
 		return false;
 	}
 
@@ -1117,6 +1140,11 @@ bool UDOInventoryComponent::CommitConsumableUse(const FGuid& InstanceId, const F
 	if (!Item || Item->DefinitionId != ExpectedDefinitionId)
 	{
 		OutFailureReason = EDOInventoryFailureReason::ItemNotFound;
+		if (ClientOperationId > 0)
+		{
+			PendingComplexConsumableOperations.Remove(ClientOperationId);
+			Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
+		}
 		return false;
 	}
 
@@ -1124,17 +1152,32 @@ bool UDOInventoryComponent::CommitConsumableUse(const FGuid& InstanceId, const F
 	const UDOItemFragment_Consumable* Fragment = Definition ? Definition->FindFragment<UDOItemFragment_Consumable>() : nullptr;
 	if (!Fragment || !CanUseConsumable(*Item, *Fragment, OutFailureReason))
 	{
+		if (ClientOperationId > 0)
+		{
+			PendingComplexConsumableOperations.Remove(ClientOperationId);
+			Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
+		}
 		return false;
 	}
 
 	FActiveGameplayEffectHandle CooldownHandle;
 	if (!ApplyConsumableCooldown(*Fragment, CooldownHandle, OutFailureReason))
 	{
+		if (ClientOperationId > 0)
+		{
+			PendingComplexConsumableOperations.Remove(ClientOperationId);
+			Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
+		}
 		return false;
 	}
 
 	if (TryConsumeItem(InstanceId, 1, OutFailureReason))
 	{
+		if (ClientOperationId > 0)
+		{
+			PendingComplexConsumableOperations.Remove(ClientOperationId);
+			Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
+		}
 		return true;
 	}
 
@@ -1148,22 +1191,43 @@ bool UDOInventoryComponent::CommitConsumableUse(const FGuid& InstanceId, const F
 			}
 		}
 	}
+	if (ClientOperationId > 0)
+	{
+		PendingComplexConsumableOperations.Remove(ClientOperationId);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, OutFailureReason, Revision);
+	}
 	return false;
 }
 
-bool UDOInventoryComponent::TryUseItemByInstanceId(const FGuid& InstanceId, EDOInventoryFailureReason& OutFailureReason)
+void UDOInventoryComponent::CancelConsumableUse(const int32 ClientOperationId)
 {
+	if (ClientOperationId > 0 && PendingComplexConsumableOperations.Remove(ClientOperationId) > 0)
+	{
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Cancelled, EDOInventoryFailureReason::None, Revision);
+	}
+}
+
+bool UDOInventoryComponent::TryUseItemByInstanceId(const FGuid& InstanceId, EDOInventoryFailureReason& OutFailureReason, const int32 ClientOperationId, bool* bOutDeferredCompletion)
+{
+	if (bOutDeferredCompletion)
+	{
+		*bOutDeferredCompletion = false;
+	}
 	const FDOItemInstanceRecord* Item = FindItemByInstanceId(InstanceId);
 	if (!Item)
 	{
 		OutFailureReason = EDOInventoryFailureReason::ItemNotFound;
 		return false;
 	}
-	return TryUseItemInternal(*Item, OutFailureReason);
+	return TryUseItemInternal(*Item, OutFailureReason, ClientOperationId, bOutDeferredCompletion);
 }
 
-bool UDOInventoryComponent::TryUseItemByDefinition(const FPrimaryAssetId& DefinitionId, EDOInventoryFailureReason& OutFailureReason)
+bool UDOInventoryComponent::TryUseItemByDefinition(const FPrimaryAssetId& DefinitionId, EDOInventoryFailureReason& OutFailureReason, const int32 ClientOperationId, bool* bOutDeferredCompletion)
 {
+	if (bOutDeferredCompletion)
+	{
+		*bOutDeferredCompletion = false;
+	}
 	const FDOInventoryEntry* Candidate = nullptr;
 	for (const FDOInventoryEntry& Entry : InventoryList.Entries)
 	{
@@ -1175,7 +1239,7 @@ bool UDOInventoryComponent::TryUseItemByDefinition(const FPrimaryAssetId& Defini
 
 	if (Candidate)
 	{
-		return TryUseItemInternal(Candidate->Item, OutFailureReason);
+		return TryUseItemInternal(Candidate->Item, OutFailureReason, ClientOperationId, bOutDeferredCompletion);
 	}
 
 	OutFailureReason = EDOInventoryFailureReason::ItemNotFound;
@@ -1185,12 +1249,50 @@ bool UDOInventoryComponent::TryUseItemByDefinition(const FPrimaryAssetId& Defini
 void UDOInventoryComponent::HandleFastArrayChanged(const TArray<FGuid>& ChangedInstanceIds)
 {
 	InventoryList.OwnerComponent = this;
-	BroadcastChanged(ChangedInstanceIds);
+	BroadcastChanged(ChangedInstanceIds, false);
 }
 
-void UDOInventoryComponent::BroadcastChanged(const TArray<FGuid>& ChangedInstanceIds)
+void UDOInventoryComponent::BeginMutation()
 {
-	++Revision;
+	if (IsServerComponent(this))
+	{
+		++MutationDepth;
+	}
+}
+
+void UDOInventoryComponent::EndMutation()
+{
+	if (!IsServerComponent(this) || MutationDepth <= 0)
+	{
+		return;
+	}
+
+	--MutationDepth;
+	if (MutationDepth == 0 && DeferredChangedInstanceIds.Num() > 0)
+	{
+		TArray<FGuid> ChangedInstanceIds = MoveTemp(DeferredChangedInstanceIds);
+		const bool bAdvanceRevision = bDeferredMutationAdvancesRevision;
+		bDeferredMutationAdvancesRevision = false;
+		BroadcastChanged(ChangedInstanceIds, bAdvanceRevision);
+	}
+}
+
+void UDOInventoryComponent::BroadcastChanged(const TArray<FGuid>& ChangedInstanceIds, const bool bAdvanceRevision)
+{
+	if (MutationDepth > 0)
+	{
+		for (const FGuid& ChangedInstanceId : ChangedInstanceIds)
+		{
+			DeferredChangedInstanceIds.AddUnique(ChangedInstanceId);
+		}
+		bDeferredMutationAdvancesRevision |= bAdvanceRevision;
+		return;
+	}
+
+	if (bAdvanceRevision && GetOwner() && GetOwner()->HasAuthority())
+	{
+		++Revision;
+	}
 	if (!GetWorld() || !UGameplayMessageSubsystem::HasInstance(this))
 	{
 		return;
@@ -1284,11 +1386,15 @@ void UDOInventoryComponent::Server_RequestMoveItem_Implementation(const FGuid& I
 	const bool bSuccess = TryMoveItemInternal(InstanceId, SourceSlot, TargetSlot, RequestedCount, FailureReason, ChangedIds);
 	if (bSuccess)
 	{
-		BroadcastChanged(ChangedIds);
+		if (ChangedIds.Num() > 0)
+		{
+			BroadcastChanged(ChangedIds);
+		}
+		Client_InventoryOperationResultEx(ClientOperationId, ChangedIds.Num() > 0 ? EDOItemOperationOutcome::Success : EDOItemOperationOutcome::NoOp, EDOInventoryFailureReason::None, Revision);
 	}
 	else
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, FailureReason);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, FailureReason, Revision);
 	}
 }
 
@@ -1300,20 +1406,24 @@ void UDOInventoryComponent::Server_RequestSplitStack_Implementation(const FGuid&
 	if (bSuccess)
 	{
 		BroadcastChanged(ChangedIds);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 	}
 	else
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, FailureReason);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, FailureReason, Revision);
 	}
 }
 
 void UDOInventoryComponent::Server_RequestSortInventory_Implementation(const int32 ClientOperationId)
 {
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
+	const int32 RevisionBefore = Revision;
 	if (!TrySortInventory(FailureReason))
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, FailureReason);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, FailureReason, Revision);
+		return;
 	}
+	Client_InventoryOperationResultEx(ClientOperationId, Revision != RevisionBefore ? EDOItemOperationOutcome::Success : EDOItemOperationOutcome::NoOp, EDOInventoryFailureReason::None, Revision);
 }
 
 void UDOInventoryComponent::Server_RequestDiscardItem_Implementation(const FGuid& InstanceId, const int32 Count, const int32 ClientOperationId)
@@ -1323,28 +1433,41 @@ void UDOInventoryComponent::Server_RequestDiscardItem_Implementation(const FGuid
 	const UDOItemFragment_Inventory* InventoryFragment = Definition ? Definition->FindFragment<UDOItemFragment_Inventory>() : nullptr;
 	if (!Item || !Definition)
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, EDOInventoryFailureReason::ItemNotFound);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, EDOInventoryFailureReason::ItemNotFound, Revision);
 		return;
 	}
 	if (InventoryFragment && !InventoryFragment->bCanDiscard)
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, EDOInventoryFailureReason::NotAllowed);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, EDOInventoryFailureReason::NotAllowed, Revision);
 		return;
 	}
 
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
 	if (!TryConsumeItem(InstanceId, Count, FailureReason))
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, FailureReason);
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, FailureReason, Revision);
+		return;
 	}
+	Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 }
 
 void UDOInventoryComponent::Server_RequestUseItem_Implementation(const FGuid& InstanceId, const int32 ClientOperationId)
 {
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
-	if (!TryUseItemByInstanceId(InstanceId, FailureReason))
+	const FDOItemInstanceRecord* Item = FindItemByInstanceId(InstanceId);
+	bool bDeferredCompletion = false;
+	if (!Item)
 	{
-		Client_InventoryOperationResult(ClientOperationId, false, FailureReason);
+		FailureReason = EDOInventoryFailureReason::ItemNotFound;
+	}
+	if (!Item || !TryUseItemInternal(*Item, FailureReason, ClientOperationId, &bDeferredCompletion))
+	{
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Failure, FailureReason, Revision);
+		return;
+	}
+	if (!bDeferredCompletion)
+	{
+		Client_InventoryOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 	}
 }
 
@@ -1354,4 +1477,36 @@ void UDOInventoryComponent::Client_InventoryOperationResult_Implementation(const
 	{
 		BroadcastOperationFailure(ClientOperationId, FailureReason);
 	}
+	BroadcastOperationResult(ClientOperationId, bSuccess ? EDOItemOperationOutcome::Success : EDOItemOperationOutcome::Failure, FailureReason, Revision);
+}
+
+void UDOInventoryComponent::Client_InventoryOperationResultEx_Implementation(const int32 ClientOperationId, const EDOItemOperationOutcome Outcome, const EDOInventoryFailureReason FailureReason, const int32 AuthoritativeRevision)
+{
+	if (Outcome == EDOItemOperationOutcome::Failure)
+	{
+		BroadcastOperationFailure(ClientOperationId, FailureReason);
+	}
+	BroadcastOperationResult(ClientOperationId, Outcome, FailureReason, AuthoritativeRevision);
+
+	if (AuthoritativeRevision > Revision && GetOwner() && GetOwner()->HasAuthority())
+	{
+		Revision = AuthoritativeRevision;
+	}
+}
+
+void UDOInventoryComponent::BroadcastOperationResult(const int32 ClientOperationId, const EDOItemOperationOutcome Outcome, const EDOInventoryFailureReason FailureReason, const int32 AuthoritativeRevision)
+{
+	if (!GetWorld() || !UGameplayMessageSubsystem::HasInstance(this))
+	{
+		return;
+	}
+
+	FDOInventoryOperationResultMessage Message;
+	Message.InventoryComponent = this;
+	Message.Result.Domain = EDOItemOperationDomain::Inventory;
+	Message.Result.Outcome = Outcome;
+	Message.Result.ClientOperationId = ClientOperationId;
+	Message.Result.FailureReason = FailureReason;
+	Message.Result.AuthoritativeRevision = AuthoritativeRevision >= 0 ? AuthoritativeRevision : Revision;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(DragonOathGameplayTags::Message::UI::Inventory::OperationResult, Message);
 }

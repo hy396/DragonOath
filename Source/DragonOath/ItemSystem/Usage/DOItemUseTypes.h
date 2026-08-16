@@ -21,4 +21,8 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "DO|ItemUse")
 	FPrimaryAssetId DefinitionId;
+
+	/** 由服务器创建并写入，蓝图不得自行指定。 */
+	UPROPERTY(BlueprintReadOnly, Category = "DO|ItemUse")
+	int32 ClientOperationId = 0;
 };

@@ -22,34 +22,34 @@ struct DRAGONOATH_API FDOAttributeModifierValues
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "攻击力"))
 	float AttackPower = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "防御力"))
 	float DefensePower = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "最大生命值"))
 	float MaxHealth = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "最大法力值"))
 	float MaxMana = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "暴击率"))
 	float CriticalRating = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "命中率"))
 	float HitRating = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "闪避率"))
 	float EvasionRating = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "攻击速度"))
 	float AttackSpeed = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "移动速度"))
 	float MoveSpeed = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "属性", meta = (ClampMin = "0.0", DisplayName = "吸血率"))
 	float LifeStealRate = 0.0f;
 
 	/** 判断所有属性是否都接近零。 */
@@ -74,13 +74,13 @@ struct DRAGONOATH_API FDOResourceRestoreValues
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0", DisplayName = "生命恢复量"))
 	float Healing = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0", DisplayName = "法力恢复量"))
 	float ManaRestore = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "回复", meta = (ClampMin = "0.0", DisplayName = "体力恢复量"))
 	float StaminaRestore = 0.0f;
 
 	/** 判断所有回复数值是否都接近零。 */
@@ -98,13 +98,13 @@ struct DRAGONOATH_API FDOItemTimedModifierValues
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果", meta = (ClampMin = "0.0", DisplayName = "持续时间（秒）"))
 	float DurationSeconds = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果", meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果", meta = (ShowOnlyInnerProperties, DisplayName = "属性修正"))
 	FDOAttributeModifierValues Modifiers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "限时效果", meta = (DisplayName = "授予标签"))
 	FGameplayTagContainer GrantedTags;
 };
 
@@ -114,10 +114,10 @@ struct DRAGONOATH_API FDOItemCooldownConfig
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "冷却", meta = (Categories = "Cooldown"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "冷却", meta = (Categories = "Cooldown", DisplayName = "冷却标签"))
 	FGameplayTag CooldownTag;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "冷却", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "冷却", meta = (ClampMin = "0.0", DisplayName = "冷却时间（秒）"))
 	float DurationSeconds = 0.0f;
 
 	bool IsEnabled() const
