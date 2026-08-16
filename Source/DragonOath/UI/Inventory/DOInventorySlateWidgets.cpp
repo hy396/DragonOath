@@ -1,18 +1,13 @@
 #include "UI/Inventory/DOInventorySlateWidgets.h"
 
-#include "AbilitySystem/Attributes/DOCombatSet.h"
-#include "AbilitySystem/Attributes/DOHealthSet.h"
-#include "AbilitySystem/Attributes/DOResourceSet.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "ItemSystem/Equipment/DOEquipmentComponent.h"
 #include "ItemSystem/Inventory/DOInventoryComponent.h"
-#include "ItemSystem/Core/DOItemDefinition.h"
-#include "Player/DOPlayerState.h"
 #include "UI/Inventory/DOInventoryStyle.h"
 #include "UI/Inventory/DOInventoryViewModel.h"
+#include "UI/Inventory/DOItemTooltipViewModel.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "Styling/CoreStyle.h"
@@ -46,110 +41,6 @@ namespace
 		return FSlateColor(FLinearColor(0.72f, 0.76f, 0.82f));
 	}
 
-	FString GetTagLeafName(const FGameplayTag& Tag)
-	{
-		if (!Tag.IsValid())
-		{
-			return TEXT("无");
-		}
-
-		FString TagName = Tag.ToString();
-		int32 DotIndex = INDEX_NONE;
-		if (TagName.FindLastChar(TEXT('.'), DotIndex))
-		{
-			TagName.RightChopInline(DotIndex + 1);
-		}
-		return TagName;
-	}
-
-	FString GetAttributeDisplayName(const FGameplayTag& AttributeTag)
-	{
-		const FString LeafName = GetTagLeafName(AttributeTag);
-		if (LeafName == TEXT("AttackPower")) return TEXT("攻击");
-		if (LeafName == TEXT("DefensePower")) return TEXT("防御");
-		if (LeafName == TEXT("MaxHealth")) return TEXT("生命上限");
-		if (LeafName == TEXT("MaxMana")) return TEXT("法力上限");
-		if (LeafName == TEXT("CriticalRating")) return TEXT("暴击");
-		if (LeafName == TEXT("HitRating")) return TEXT("命中");
-		if (LeafName == TEXT("EvasionRating")) return TEXT("闪避");
-		if (LeafName == TEXT("AttackSpeed")) return TEXT("攻击速度");
-		if (LeafName == TEXT("MoveSpeed")) return TEXT("移动速度");
-		if (LeafName == TEXT("LifeStealRate")) return TEXT("吸血");
-		return LeafName;
-	}
-
-	float GetEquipmentAttributeValue(const UDOItemFragment_Equipment* EquipmentFragment, const FGameplayTag& AttributeTag, const int32 UpgradeLevel)
-	{
-		if (!EquipmentFragment)
-		{
-			return 0.0f;
-		}
-
-		const FScalableFloat* Magnitude = EquipmentFragment->BaseAttributeMagnitudes.Find(AttributeTag);
-		return Magnitude
-			? Magnitude->GetValueAtLevel(1.0f) * (1.0f + FMath::Max(0, UpgradeLevel) * 0.05f)
-			: 0.0f;
-	}
-
-	void AppendEquipmentAttributeLines(FString& Tooltip, const UDOItemFragment_Equipment* EquipmentFragment, const int32 UpgradeLevel)
-	{
-		if (!EquipmentFragment || EquipmentFragment->BaseAttributeMagnitudes.IsEmpty())
-		{
-			return;
-		}
-
-		Tooltip += TEXT("\n基础属性：");
-		for (const TPair<FGameplayTag, FScalableFloat>& Attribute : EquipmentFragment->BaseAttributeMagnitudes)
-		{
-			const float Value = GetEquipmentAttributeValue(EquipmentFragment, Attribute.Key, UpgradeLevel);
-			Tooltip += FString::Printf(TEXT("\n%s  %+0.1f"), *GetAttributeDisplayName(Attribute.Key), Value);
-		}
-	}
-
-	void AppendEquipmentComparison(FString& Tooltip, const FDOInventorySlotViewModel& Slot, const UDOInventoryViewModel* ViewModel, const UDOItemDefinition* Definition)
-	{
-		const UDOItemFragment_Equipment* NewEquipment = Definition ? Definition->FindFragment<UDOItemFragment_Equipment>() : nullptr;
-		if (!NewEquipment || !ViewModel || !ViewModel->GetEquipmentComponent())
-		{
-			return;
-		}
-
-		const FDOEquippedItemEntry* CurrentEntry = ViewModel->GetEquipmentComponent()->FindEquippedBySlot(NewEquipment->EquipmentSlotTag);
-		if (!CurrentEntry || CurrentEntry->Item.DefinitionId == Slot.Item.DefinitionId)
-		{
-			return;
-		}
-
-		const FSoftObjectPath CurrentPath = UAssetManager::Get().GetPrimaryAssetPath(CurrentEntry->Item.DefinitionId);
-		const UDOItemDefinition* CurrentDefinition = CurrentPath.IsValid()
-			? Cast<UDOItemDefinition>(CurrentPath.TryLoad())
-			: nullptr;
-		const UDOItemFragment_Equipment* CurrentEquipment = CurrentDefinition
-			? CurrentDefinition->FindFragment<UDOItemFragment_Equipment>()
-			: nullptr;
-		if (!CurrentEquipment)
-		{
-			return;
-		}
-
-		Tooltip += TEXT("\n\n对比当前装备：");
-		TSet<FGameplayTag> AttributeTags;
-		for (const TPair<FGameplayTag, FScalableFloat>& Attribute : NewEquipment->BaseAttributeMagnitudes)
-		{
-			AttributeTags.Add(Attribute.Key);
-		}
-		for (const TPair<FGameplayTag, FScalableFloat>& Attribute : CurrentEquipment->BaseAttributeMagnitudes)
-		{
-			AttributeTags.Add(Attribute.Key);
-		}
-
-		for (const FGameplayTag& AttributeTag : AttributeTags)
-		{
-			const float NewValue = GetEquipmentAttributeValue(NewEquipment, AttributeTag, Slot.Item.UpgradeLevel);
-			const float CurrentValue = GetEquipmentAttributeValue(CurrentEquipment, AttributeTag, CurrentEntry->Item.UpgradeLevel);
-			Tooltip += FString::Printf(TEXT("\n%s  %+0.1f"), *GetAttributeDisplayName(AttributeTag), NewValue - CurrentValue);
-		}
-	}
 }
 
 void SDOItemContextMenu::Construct(const FArguments& InArgs)
@@ -237,13 +128,13 @@ void SDOInventorySlotWidget::Construct(const FArguments& InArgs)
 	.OnGetMenuContent(this, &SDOInventorySlotWidget::BuildContextMenu)
 	[
 		SNew(SBox)
-		.WidthOverride(80.0f)
-		.HeightOverride(80.0f)
+		.WidthOverride(82.0f)
+		.HeightOverride(82.0f)
 		[
 			SNew(SBorder)
 			.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Slot"))
 			.BorderBackgroundColor_Lambda([this] { return GetBorderColor(); })
-			.Padding(5.0f)
+			.Padding(4.0f)
 			.ToolTipText(this, &SDOInventorySlotWidget::GetTooltipText)
 			[
 				SNew(SOverlay)
@@ -255,13 +146,22 @@ void SDOInventorySlotWidget::Construct(const FArguments& InArgs)
 					.Image_Lambda([this] { return GetIconBrush(); })
 				]
 				+ SOverlay::Slot()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Bottom)
+				.Padding(1.0f)
 				[
-					SNew(STextBlock)
-					.Text_Lambda([this] { return GetNameText(); })
-					.AutoWrapText(true)
-					.Justification(ETextJustify::Center)
+					SNew(SBorder)
+					.BorderImage(GetWhiteBrush())
+					.BorderBackgroundColor(FLinearColor(0.12f, 0.035f, 0.01f, 0.82f))
+					.Padding(2.0f, 1.0f)
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this] { return GetNameText(); })
+						.Font(FDOInventoryStyle::GetBodyTextStyle().Font)
+						.AutoWrapText(true)
+						.Justification(ETextJustify::Center)
+						.ColorAndOpacity(FLinearColor(1.0f, 0.93f, 0.78f, 1.0f))
+					]
 				]
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Right)
@@ -269,6 +169,7 @@ void SDOInventorySlotWidget::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([this] { return GetStackText(); })
+					.Font(FDOInventoryStyle::GetBodyTextStyle().Font)
 					.ColorAndOpacity(FLinearColor::White)
 				]
 				+ SOverlay::Slot()
@@ -318,15 +219,15 @@ FSlateColor SDOInventorySlotWidget::GetBorderColor() const
 {
 	if (!SlotViewModel.IsValid() || SlotViewModel->bIsEmpty)
 	{
-		return FSlateColor(FLinearColor(0.08f, 0.1f, 0.13f, 0.85f));
+		return FSlateColor(FLinearColor(0.34f, 0.13f, 0.035f, 0.88f));
 	}
 	if (SlotViewModel->bIsPending)
 	{
-		return FSlateColor(FLinearColor(0.95f, 0.72f, 0.18f, 1.0f));
+		return FSlateColor(FLinearColor(1.0f, 0.78f, 0.18f, 1.0f));
 	}
 	if (IsSelected())
 	{
-		return FSlateColor(FLinearColor(0.15f, 0.85f, 0.82f, 1.0f));
+		return FSlateColor(FLinearColor(1.0f, 0.72f, 0.18f, 1.0f));
 	}
 	return GetQualityColor(SlotViewModel->Rarity);
 }
@@ -351,61 +252,7 @@ FText SDOInventorySlotWidget::GetTooltipText() const
 	{
 		return FText::FromString(TEXT("空槽"));
 	}
-
-	const UDOItemDefinition* Definition = nullptr;
-	if (SlotViewModel->Item.DefinitionId.IsValid())
-	{
-		const FSoftObjectPath DefinitionPath = UAssetManager::Get().GetPrimaryAssetPath(SlotViewModel->Item.DefinitionId);
-		Definition = DefinitionPath.IsValid() ? Cast<UDOItemDefinition>(DefinitionPath.TryLoad()) : nullptr;
-	}
-
-	FString Tooltip = SlotViewModel->DisplayName.ToString();
-	Tooltip += FString::Printf(TEXT("\n品质：%s"), *GetTagLeafName(SlotViewModel->Rarity));
-	Tooltip += FString::Printf(TEXT("\n类型：%s"), *GetTagLeafName(SlotViewModel->ItemType));
-	Tooltip += FString::Printf(TEXT("\n数量：%d"), SlotViewModel->Item.StackCount);
-	Tooltip += FString::Printf(TEXT("\n背包槽位：%d"), SlotViewModel->Item.SlotIndex + 1);
-
-	if (Definition && !Definition->Description.IsEmpty())
-	{
-		Tooltip += FString::Printf(TEXT("\n\n%s"), *Definition->Description.ToString());
-	}
-
-	if (const UDOItemFragment_Inventory* InventoryFragment = Definition ? Definition->FindFragment<UDOItemFragment_Inventory>() : nullptr)
-	{
-		if (InventoryFragment->bBindOnPickup) Tooltip += TEXT("\n拾取绑定");
-		if (!InventoryFragment->bCanDiscard) Tooltip += TEXT("\n不可丢弃");
-		if (!InventoryFragment->bCanSell) Tooltip += TEXT("\n不可出售");
-	}
-
-	if (const UDOItemFragment_Equipment* EquipmentFragment = Definition ? Definition->FindFragment<UDOItemFragment_Equipment>() : nullptr)
-	{
-		Tooltip += FString::Printf(TEXT("\n部位：%s"), *GetTagLeafName(EquipmentFragment->EquipmentSlotTag));
-		Tooltip += FString::Printf(TEXT("\n需求等级：%d"), EquipmentFragment->RequiredLevel);
-		if (!EquipmentFragment->RequiredProfessionQuery.IsEmpty()) Tooltip += TEXT("\n职业限制：有");
-		if (SlotViewModel->Item.UpgradeLevel > 0) Tooltip += FString::Printf(TEXT("\n强化：+%d"), SlotViewModel->Item.UpgradeLevel);
-		if (EquipmentFragment->MaxDurability > 0)
-		{
-			Tooltip += FString::Printf(TEXT("\n耐久：%d / %d"), SlotViewModel->Item.CurrentDurability, EquipmentFragment->MaxDurability);
-		}
-		AppendEquipmentAttributeLines(Tooltip, EquipmentFragment, SlotViewModel->Item.UpgradeLevel);
-		AppendEquipmentComparison(Tooltip, *SlotViewModel, ViewModel.Get(), Definition);
-	}
-
-	if (const UDOItemFragment_Consumable* ConsumableFragment = Definition ? Definition->FindFragment<UDOItemFragment_Consumable>() : nullptr)
-	{
-		Tooltip += TEXT("\n使用效果：使用后生效");
-		if (ConsumableFragment->SharedCooldownTag.IsValid())
-		{
-			Tooltip += FString::Printf(TEXT("\n公共冷却：%s"), *GetTagLeafName(ConsumableFragment->SharedCooldownTag));
-		}
-	}
-
-	for (const FDOItemAffixRoll& Affix : SlotViewModel->Item.Affixes)
-	{
-		Tooltip += FString::Printf(TEXT("\n%s  %+0.1f"), *GetTagLeafName(Affix.AffixTag), Affix.Magnitude);
-	}
-
-	return FText::FromString(Tooltip);
+	return UDOItemTooltipViewModel::BuildForInventorySlot(*SlotViewModel, ViewModel.Get());
 }
 
 const FSlateBrush* SDOInventorySlotWidget::GetIconBrush() const
@@ -425,14 +272,17 @@ void SDOInventorySlotWidget::RequestIconLoad()
 	}
 
 	RequestedIconPath = SlotViewModel->Icon.ToSoftObjectPath();
+	RequestedInstanceId = SlotViewModel->GetInstanceId();
 	const FSoftObjectPath RequestedPath = RequestedIconPath;
+	const FGuid RequestedId = RequestedInstanceId;
 	TWeakPtr<SDOInventorySlotWidget> WeakThis = SharedThis(this);
 	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(
 		RequestedPath,
-		FStreamableDelegate::CreateLambda([WeakThis, RequestedPath]
+		FStreamableDelegate::CreateLambda([WeakThis, RequestedPath, RequestedId]
 		{
 			TSharedPtr<SDOInventorySlotWidget> Widget = WeakThis.Pin();
-			if (!Widget.IsValid() || Widget->RequestedIconPath != RequestedPath)
+			if (!Widget.IsValid() || Widget->RequestedIconPath != RequestedPath || Widget->RequestedInstanceId != RequestedId
+				|| !Widget->SlotViewModel.IsValid() || Widget->SlotViewModel->GetInstanceId() != RequestedId)
 			{
 				return;
 			}
@@ -515,6 +365,7 @@ FReply SDOInventorySlotWidget::OnDragDetected(const FGeometry& /*MyGeometry*/, c
 
 	TSharedRef<FDOInventoryDragDropOperation> DragOperation = MakeShared<FDOInventoryDragDropOperation>();
 	DragOperation->InstanceId = SlotViewModel->GetInstanceId();
+	DragOperation->SourceDomain = EDOItemOperationDomain::Inventory;
 	DragOperation->SourceSlotIndex = SlotViewModel->GetSlotIndex();
 	DragOperation->RequestedCount = SlotViewModel->Item.StackCount;
 	DragOperation->bSplitRequested = MouseEvent.IsShiftDown() && SlotViewModel->Item.StackCount > 1;
@@ -535,45 +386,79 @@ FReply SDOInventorySlotWidget::OnDrop(const FGeometry& /*MyGeometry*/, const FDr
 void SDOEquipmentSlotWidget::Construct(const FArguments& InArgs)
 {
 	ViewModel = InArgs._ViewModel;
+	SlotViewModel = InArgs._SlotViewModel;
 	SlotTag = InArgs._SlotTag;
 	DisplayName = InArgs._DisplayName;
 	OnDropped = InArgs._OnDropped;
 	OnClicked = InArgs._OnClicked;
+	RequestIconLoad();
 
 	ChildSlot
 	[
-		SNew(SBorder)
-		.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Slot"))
-		.BorderBackgroundColor_Lambda([this] { return GetBorderColor(); })
-		.Padding(10.0f)
-		.ToolTipText(this, &SDOEquipmentSlotWidget::GetTooltipText)
+		SNew(SBox)
+		.WidthOverride(104.0f)
+		.HeightOverride(66.0f)
 		[
-			SNew(STextBlock)
-			.Text_Lambda([this] { return GetSlotText(); })
-			.AutoWrapText(true)
+			SNew(SBorder)
+			.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.ArtEquipmentSlot"))
+			.BorderBackgroundColor(FLinearColor::White)
+			.Padding(9.0f)
+			.ToolTipText(this, &SDOEquipmentSlotWidget::GetTooltipText)
+			[
+				SNew(SOverlay)
+				+ SOverlay::Slot().Padding(3.0f)
+				[
+					SNew(SBorder)
+					.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Slot"))
+					.BorderBackgroundColor_Lambda([this] { return GetBorderColor(); })
+				]
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SBox)
+					.WidthOverride(42.0f)
+					.HeightOverride(42.0f)
+					[
+						SNew(SImage).Image_Lambda([this] { return GetIconBrush(); })
+					]
+				]
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				.Padding(47.0f, 0.0f, 2.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this] { return GetSlotText(); })
+					.Font(FDOInventoryStyle::GetBodyTextStyle().Font)
+					.AutoWrapText(true)
+				]
+			]
 		]
 	];
 }
 
 FSlateColor SDOEquipmentSlotWidget::GetBorderColor() const
 {
-	if (ViewModel.IsValid() && ViewModel->GetEquipmentComponent() && ViewModel->GetEquipmentComponent()->IsSlotEquipped(SlotTag))
+	if (SlotViewModel.IsValid() && !SlotViewModel->bIsEmpty)
 	{
-		return FSlateColor(FLinearColor(0.18f, 0.45f, 0.52f, 1.0f));
+		return GetQualityColor(SlotViewModel->Rarity);
 	}
-	return FSlateColor(FLinearColor(0.10f, 0.13f, 0.18f, 1.0f));
+	return FSlateColor(FLinearColor(0.36f, 0.14f, 0.04f, 1.0f));
 }
 
 FText SDOEquipmentSlotWidget::GetSlotText() const
 {
-	if (ViewModel.IsValid() && ViewModel->GetEquipmentComponent())
+	if (SlotViewModel.IsValid() && !SlotViewModel->bIsEmpty)
 	{
-		if (const FDOEquippedItemEntry* Entry = ViewModel->GetEquipmentComponent()->FindEquippedBySlot(SlotTag))
+		if (SlotViewModel.IsValid())
 		{
 			return FText::Format(
 				FText::FromString(TEXT("{0}\n{1}")),
 				DisplayName,
-				FText::FromName(Entry->Item.DefinitionId.PrimaryAssetName));
+				SlotViewModel->ItemDisplayName.IsEmpty()
+					? FText::FromName(SlotViewModel->Item.DefinitionId.PrimaryAssetName)
+					: SlotViewModel->ItemDisplayName);
 		}
 	}
 	return FText::Format(FText::FromString(TEXT("{0}\n空槽\n拖入对应部位装备")), DisplayName);
@@ -581,18 +466,60 @@ FText SDOEquipmentSlotWidget::GetSlotText() const
 
 FText SDOEquipmentSlotWidget::GetTooltipText() const
 {
-	if (ViewModel.IsValid() && ViewModel->GetEquipmentComponent() && ViewModel->GetEquipmentComponent()->IsSlotEquipped(SlotTag))
+	return UDOItemTooltipViewModel::BuildForEquipmentSlot(SlotTag, DisplayName, ViewModel.Get());
+}
+
+const FSlateBrush* SDOEquipmentSlotWidget::GetIconBrush() const
+{
+	const FSoftObjectPath CurrentPath = SlotViewModel.IsValid() && !SlotViewModel->bIsEmpty
+		? SlotViewModel->Icon.ToSoftObjectPath()
+		: FSoftObjectPath();
+	if (CurrentPath != RequestedIconPath)
 	{
-		return FText::FromString(TEXT("左键卸下装备；也可以将同部位装备拖到这里进行替换。"));
+		const_cast<SDOEquipmentSlotWidget*>(this)->RequestIconLoad();
 	}
-	return FText::FromString(TEXT("将对应部位的装备从背包拖到这里。"));
+	return LoadedIconBrush.IsValid()
+		? LoadedIconBrush.Get()
+		: FDOInventoryStyle::GetBrush("DOInventory.PlaceholderIcon");
+}
+
+void SDOEquipmentSlotWidget::RequestIconLoad()
+{
+	LoadedIconBrush.Reset();
+	RequestedIconPath.Reset();
+	if (!SlotViewModel.IsValid() || SlotViewModel->bIsEmpty || !SlotViewModel->Icon.ToSoftObjectPath().IsValid())
+	{
+		return;
+	}
+
+	RequestedIconPath = SlotViewModel->Icon.ToSoftObjectPath();
+	const FSoftObjectPath RequestedPath = RequestedIconPath;
+	TWeakPtr<SDOEquipmentSlotWidget> WeakThis = SharedThis(this);
+	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(
+		RequestedPath,
+		FStreamableDelegate::CreateLambda([WeakThis, RequestedPath]
+		{
+			TSharedPtr<SDOEquipmentSlotWidget> Widget = WeakThis.Pin();
+			if (!Widget.IsValid() || Widget->RequestedIconPath != RequestedPath || !Widget->SlotViewModel.IsValid()
+				|| Widget->SlotViewModel->Icon.ToSoftObjectPath() != RequestedPath)
+			{
+				return;
+			}
+
+			if (UTexture2D* Texture = Cast<UTexture2D>(RequestedPath.ResolveObject()))
+			{
+				Widget->LoadedIconBrush = MakeShared<FSlateBrush>();
+				Widget->LoadedIconBrush->DrawAs = ESlateBrushDrawType::Image;
+				Widget->LoadedIconBrush->SetResourceObject(Texture);
+				Widget->LoadedIconBrush->ImageSize = FVector2D(42.0f, 42.0f);
+			}
+			Widget->Invalidate(EInvalidateWidgetReason::Paint);
+		}));
 }
 
 FReply SDOEquipmentSlotWidget::OnMouseButtonDown(const FGeometry& /*MyGeometry*/, const FPointerEvent& MouseEvent)
 {
-	const bool bHasEquippedItem = ViewModel.IsValid()
-		&& ViewModel->GetEquipmentComponent()
-		&& ViewModel->GetEquipmentComponent()->IsSlotEquipped(SlotTag);
+	const bool bHasEquippedItem = SlotViewModel.IsValid() && !SlotViewModel->bIsEmpty;
 	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && bHasEquippedItem && OnClicked.IsBound())
 	{
 		OnClicked.Execute(SlotTag);
@@ -603,9 +530,7 @@ FReply SDOEquipmentSlotWidget::OnMouseButtonDown(const FGeometry& /*MyGeometry*/
 
 FReply SDOEquipmentSlotWidget::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
-	const bool bHasEquippedItem = ViewModel.IsValid()
-		&& ViewModel->GetEquipmentComponent()
-		&& ViewModel->GetEquipmentComponent()->IsSlotEquipped(SlotTag);
+	const bool bHasEquippedItem = SlotViewModel.IsValid() && !SlotViewModel->bIsEmpty;
 	if ((InKeyEvent.GetKey() == EKeys::Enter || InKeyEvent.GetKey() == EKeys::Virtual_Gamepad_Accept.GetVirtualKey()) && bHasEquippedItem && OnClicked.IsBound())
 	{
 		OnClicked.Execute(SlotTag);
@@ -633,21 +558,32 @@ void SDOInventoryEquipmentPanel::Construct(const FArguments& InArgs)
 	SAssignNew(RootOverlay, SOverlay)
 	+ SOverlay::Slot()
 	[
+		SNew(SImage)
+		.Image(FDOInventoryStyle::GetBrush("DOInventory.ArtBackdrop"))
+	]
+	+ SOverlay::Slot()
+	[
 		SNew(SBorder)
-		.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Panel"))
-		.BorderBackgroundColor(FLinearColor::White)
-		.Padding(18.0f)
+		.BorderImage(GetWhiteBrush())
+		.BorderBackgroundColor(FLinearColor(0.98f, 0.66f, 0.18f, 1.0f))
+		.Padding(2.0f)
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight()[BuildTopBar()]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)[SNew(SSeparator)]
-			+ SVerticalBox::Slot().FillHeight(1.0f)
+			SNew(SBorder)
+			.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Panel"))
+			.BorderBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.66f))
+			.Padding(18.0f)
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().FillWidth(0.46f).Padding(0.0f, 0.0f, 12.0f, 0.0f)[BuildCharacterPanel()]
-				+ SHorizontalBox::Slot().FillWidth(0.54f)[BuildInventoryPanel()]
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()[BuildTopBar()]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)[SNew(SSeparator).ColorAndOpacity(FLinearColor(0.96f, 0.52f, 0.12f, 0.85f))]
+				+ SVerticalBox::Slot().FillHeight(1.0f)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().FillWidth(0.46f).Padding(0.0f, 0.0f, 12.0f, 0.0f)[BuildCharacterPanel()]
+					+ SHorizontalBox::Slot().FillWidth(0.54f)[BuildInventoryPanel()]
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f, 0.0f, 0.0f)[BuildActionBar()]
 			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f, 0.0f, 0.0f)[BuildActionBar()]
 		]
 	]
 	+ SOverlay::Slot()
@@ -740,78 +676,102 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildTopBar()
 		+ SHorizontalBox::Slot().FillWidth(1.0f)
 		[
 			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(FText::FromString(TEXT("角色背包" ))).Font(FCoreStyle::Get().GetFontStyle("EmbossedText"))]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)[SNew(STextBlock).Text(FText::FromString(TEXT("装备、物品与属性"))).ColorAndOpacity(FLinearColor(0.55f, 0.62f, 0.7f))]
+			+ SVerticalBox::Slot().AutoHeight()[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("角色背包")))
+				.TextStyle(&FDOInventoryStyle::GetTitleTextStyle())
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("装备、物品与属性")))
+				.TextStyle(&FDOInventoryStyle::GetBodyTextStyle())
+			]
 		]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top)
 		[
 			SNew(SButton)
 			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.ToolTipText(FText::FromString(TEXT("关闭背包（Esc）")))
-			.Text(FText::FromString(TEXT("关闭")))
+			.Text(FText::FromString(TEXT("X")))
 			.OnClicked(this, &SDOInventoryEquipmentPanel::HandleCloseRequested)
 		];
 }
 
 TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildCharacterPanel()
 {
-	const TArray<TPair<FGameplayTag, FText>> EquipmentSlots = {
-		{ DragonOathGameplayTags::Equipment::Slot::Head, FText::FromString(TEXT("头部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Shoulder, FText::FromString(TEXT("肩部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Back, FText::FromString(TEXT("背部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Chest, FText::FromString(TEXT("胸部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Hands, FText::FromString(TEXT("手部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Legs, FText::FromString(TEXT("腿部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Feet, FText::FromString(TEXT("脚部")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Accessory, FText::FromString(TEXT("饰品")) },
-		{ DragonOathGameplayTags::Equipment::Slot::Weapon, FText::FromString(TEXT("武器")) }
-	};
-
-	TSharedRef<SVerticalBox> EquipmentBox = SNew(SVerticalBox);
-	for (const TPair<FGameplayTag, FText>& Slot : EquipmentSlots)
+	TSharedRef<SVerticalBox> LeftEquipmentSlots = SNew(SVerticalBox);
+	TSharedRef<SVerticalBox> RightEquipmentSlots = SNew(SVerticalBox);
+	if (ViewModel.IsValid())
 	{
-		EquipmentBox->AddSlot().AutoHeight().Padding(0.0f, 2.0f)[BuildEquipmentSlot(Slot.Key, Slot.Value)];
+		int32 SlotIndex = 0;
+		for (const TSharedPtr<FDOEquipmentSlotViewModel>& Slot : ViewModel->GetEquipmentSlots())
+		{
+			if (Slot.IsValid())
+			{
+				if (SlotIndex % 2 == 0)
+				{
+					LeftEquipmentSlots->AddSlot().AutoHeight().Padding(2.0f)[BuildEquipmentSlot(Slot->SlotTag, Slot->DisplayName)];
+				}
+				else
+				{
+					RightEquipmentSlots->AddSlot().AutoHeight().Padding(2.0f)[BuildEquipmentSlot(Slot->SlotTag, Slot->DisplayName)];
+				}
+				++SlotIndex;
+			}
+		}
 	}
-	TSharedRef<SScrollBox> EquipmentScrollBox = SNew(SScrollBox);
-	EquipmentScrollBox->AddSlot()[EquipmentBox];
 
 	return SNew(SBorder)
 		.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.SubPanel"))
-		.BorderBackgroundColor(FLinearColor::White)
-		.Padding(12.0f)
+		.BorderBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.62f))
+		.Padding(14.0f)
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().FillWidth(0.42f)
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(FText::FromString(TEXT("装备"))).Font(FCoreStyle::Get().GetFontStyle("EmbossedText"))]
-				+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 10.0f)[EquipmentScrollBox]
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("角色状态")))
+				.TextStyle(&FDOInventoryStyle::GetTitleTextStyle())
 			]
-			+ SHorizontalBox::Slot().FillWidth(0.58f).Padding(16.0f, 0.0f, 0.0f, 0.0f)
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(FText::FromString(TEXT("角色属性"))).Font(FCoreStyle::Get().GetFontStyle("EmbossedText"))]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[SNew(STextBlock).Text_Lambda([this] { return GetCombatPowerText(); }).ColorAndOpacity(FLinearColor(1.0f, 0.72f, 0.25f))]
-				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text_Lambda([this] { return GetGuardPowerText(); }).ColorAndOpacity(FLinearColor(0.35f, 0.80f, 1.0f))]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)[SNew(STextBlock).Text(FText::FromString(TEXT("角色预览"))).ColorAndOpacity(FLinearColor(0.35f, 0.75f, 0.72f))]
-				+ SVerticalBox::Slot().FillHeight(1.0f)[
-					SNew(SImage).Image_Lambda([this] { return GetPreviewBrush(); })
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[
-					SNew(SBorder).BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Slot")).BorderBackgroundColor(FLinearColor::White).Padding(14.0f)[
-						SNew(STextBlock).Text_Lambda([this]
-						{
-							if (ViewModel.IsValid() && ViewModel->GetPlayerState())
-							{
-								return FText::Format(FText::FromString(TEXT("装备栏\n\n已选择：{0}\n数量：{1}")), ViewModel->GetSelectedDisplayName(), FText::AsNumber(ViewModel->GetSelectedStackCount()));
-							}
-							return FText::FromString(TEXT("装备栏"));
-						})
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text_Lambda([this] { return GetCombatPowerText(); }).ColorAndOpacity(FLinearColor(1.0f, 0.78f, 0.18f))]
+				+ SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([this] { return GetGuardPowerText(); }).ColorAndOpacity(FLinearColor(1.0f, 0.68f, 0.34f))]
+			]
+			+ SVerticalBox::Slot().FillHeight(1.0f).MinHeight(280.0f).Padding(0.0f, 4.0f)[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[LeftEquipmentSlots]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(8.0f, 0.0f)[
+					SNew(SBorder)
+					.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Panel"))
+					.BorderBackgroundColor(FLinearColor(1.0f, 0.55f, 0.12f, 0.95f))
+					.Padding(8.0f)
+					[
+						SNew(SImage).Image_Lambda([this] { return GetPreviewBrush(); })
 					]
 				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 10.0f, 0.0f, 0.0f)[
-					SNew(STextBlock).Text_Lambda([this] { return GetAttributeSummaryText(); }).AutoWrapText(true)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[RightEquipmentSlots]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)[
+				SNew(SBorder)
+				.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.Slot"))
+				.BorderBackgroundColor(FLinearColor::White)
+				.Padding(8.0f)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this]
+					{
+						return FText::Format(FText::FromString(TEXT("当前选择：{0}    数量：{1}")), GetSelectedNameText(), GetSelectedStackText());
+					})
+					.TextStyle(&FDOInventoryStyle::GetBodyTextStyle())
 				]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 10.0f, 0.0f, 0.0f)[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("角色属性")))
+				.TextStyle(&FDOInventoryStyle::GetTitleTextStyle())
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)[
+				SNew(STextBlock).Text_Lambda([this] { return GetAttributeSummaryText(); }).TextStyle(&FDOInventoryStyle::GetBodyTextStyle()).AutoWrapText(true)
 			]
 		];
 }
@@ -820,6 +780,7 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildEquipmentSlot(const FGamepl
 {
 	return SNew(SDOEquipmentSlotWidget)
 		.ViewModel(ViewModel)
+		.SlotViewModel(ViewModel.IsValid() ? ViewModel->GetOrCreateEquipmentSlot(SlotTag) : nullptr)
 		.SlotTag(SlotTag)
 		.DisplayName(DisplayName)
 		.OnDropped(FDOOnEquipmentSlotDropped::CreateSP(this, &SDOInventoryEquipmentPanel::HandleEquipmentSlotDropped))
@@ -828,12 +789,12 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildEquipmentSlot(const FGamepl
 
 TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildInventoryPanel()
 {
-	SAssignNew(CategoryBox, SHorizontalBox);
+	SAssignNew(CategoryBox, SVerticalBox);
 	if (ViewModel.IsValid())
 	{
 		for (const FDOInventoryCategoryOption& Category : ViewModel->GetCategories())
 		{
-			CategoryBox->AddSlot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)[BuildCategoryButton(Category)];
+			CategoryBox->AddSlot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)[BuildCategoryButton(Category)];
 		}
 	}
 
@@ -847,27 +808,34 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildInventoryPanel()
 		.OnGenerateTile(this, &SDOInventoryEquipmentPanel::GenerateInventoryTile);
 
 	return SNew(SBorder)
-		.BorderImage(GetWhiteBrush())
-		.BorderBackgroundColor(FLinearColor(0.055f, 0.07f, 0.1f, 0.9f))
-		.Padding(12.0f)
+		.BorderImage(FDOInventoryStyle::GetBrush("DOInventory.SubPanel"))
+		.BorderBackgroundColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.62f))
+		.Padding(14.0f)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()[
 				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text(FText::FromString(TEXT("背包"))).Font(FCoreStyle::Get().GetFontStyle("EmbossedText"))]
-				+ SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([this] { return GetCapacityText(); }).ColorAndOpacity(FLinearColor(0.55f, 0.7f, 0.78f))]
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text(FText::FromString(TEXT("物品背包"))).TextStyle(&FDOInventoryStyle::GetTitleTextStyle())]
+				+ SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([this] { return GetCapacityText(); }).TextStyle(&FDOInventoryStyle::GetBodyTextStyle())]
 			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 10.0f)[
-				SNew(SScrollBox)
-				.Orientation(Orient_Horizontal)
-				+ SScrollBox::Slot()[CategoryBox.ToSharedRef()]
+			+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 10.0f)[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 10.0f, 0.0f)[
+					SNew(SScrollBox)
+					.Orientation(Orient_Vertical)
+					+ SScrollBox::Slot()[CategoryBox.ToSharedRef()]
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[InventoryTileView.ToSharedRef()]
 			]
-			+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 10.0f)[InventoryTileView.ToSharedRef()]
 			+ SVerticalBox::Slot().AutoHeight()[
 				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text_Lambda([this] { return GetPageText(); })]
-				+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).Text(FText::FromString(TEXT("上一页"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandlePreviousPage)]
-				+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).Text(FText::FromString(TEXT("下一页"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandleNextPage)]
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text_Lambda([this] { return GetPageText(); }).TextStyle(&FDOInventoryStyle::GetBodyTextStyle())]
+				+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
+					SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).Text(FText::FromString(TEXT("<"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandlePreviousPage)
+				]
+				+ SHorizontalBox::Slot().AutoWidth()[
+					SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).Text(FText::FromString(TEXT(">"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandleNextPage)
+				]
 			]
 		];
 }
@@ -875,11 +843,12 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildInventoryPanel()
 TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildCategoryButton(const FDOInventoryCategoryOption& Category)
 {
 	return SNew(SButton)
+		.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 		.ButtonColorAndOpacity_Lambda([this, Category]
 		{
 			return ViewModel.IsValid() && ViewModel->GetCurrentFilter() == Category.FilterTag
-				? FLinearColor(0.12f, 0.55f, 0.55f, 1.0f)
-				: FLinearColor(0.12f, 0.15f, 0.2f, 1.0f);
+				? FLinearColor(0.82f, 0.38f, 0.95f, 1.0f)
+				: FLinearColor(0.40f, 0.16f, 0.44f, 1.0f);
 		})
 		.OnClicked_Lambda([this, Category]
 		{
@@ -887,16 +856,26 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildCategoryButton(const FDOInv
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Text(Category.DisplayName)
+			SNew(SBox)
+			.WidthOverride(96.0f)
+			.MinDesiredHeight(28.0f)
+			.Padding(FMargin(10.0f, 3.0f))
+			[
+				SNew(STextBlock)
+				.Text(Category.DisplayName)
+				.Justification(ETextJustify::Center)
+				.TextStyle(&FDOInventoryStyle::GetBodyTextStyle())
+			]
 		];
 }
 
 TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildActionBar()
 {
 	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text_Lambda([this] { return GetSelectedDescriptionText(); }).ColorAndOpacity(FLinearColor(0.65f, 0.7f, 0.76f))]
+		+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text_Lambda([this] { return GetSelectedDescriptionText(); }).TextStyle(&FDOInventoryStyle::GetBodyTextStyle()).AutoWrapText(true)]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this]
 			{
 				const FDOInventorySlotViewModel* Slot = GetSelectedSlot();
@@ -907,6 +886,7 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildActionBar()
 			.OnClicked(this, &SDOInventoryEquipmentPanel::HandleActivateSelected)]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this]
 			{
 				const FDOInventorySlotViewModel* Slot = GetSelectedSlot();
@@ -917,31 +897,36 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildActionBar()
 			.OnClicked(this, &SDOInventoryEquipmentPanel::HandleEquipSelected)]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this] { const FDOInventorySlotViewModel* Slot = GetSelectedSlot(); return Slot && !Slot->bIsPending && Slot->bIsUsable; })
 			.ToolTipText(FText::FromString(TEXT("选择消耗品后绑定到快捷栏 1。")))
 			.Text(FText::FromString(TEXT("绑定1")))
 			.OnClicked_Lambda([this] { return HandleAssignToQuickBar(0); })]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this] { const FDOInventorySlotViewModel* Slot = GetSelectedSlot(); return Slot && !Slot->bIsPending && Slot->bIsUsable; })
 			.ToolTipText(FText::FromString(TEXT("选择消耗品后绑定到快捷栏 2。")))
 			.Text(FText::FromString(TEXT("绑定2")))
 			.OnClicked_Lambda([this] { return HandleAssignToQuickBar(1); })]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this] { const FDOInventorySlotViewModel* Slot = GetSelectedSlot(); return Slot && !Slot->bIsPending && Slot->bIsUsable; })
 			.ToolTipText(FText::FromString(TEXT("选择消耗品后绑定到快捷栏 3。")))
 			.Text(FText::FromString(TEXT("绑定3")))
 			.OnClicked_Lambda([this] { return HandleAssignToQuickBar(2); })]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this] { const FDOInventorySlotViewModel* Slot = GetSelectedSlot(); return Slot && !Slot->bIsPending && Slot->bIsUsable; })
 			.ToolTipText(FText::FromString(TEXT("选择消耗品后绑定到快捷栏 4。")))
 			.Text(FText::FromString(TEXT("绑定4")))
 			.OnClicked_Lambda([this] { return HandleAssignToQuickBar(3); })]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).Text(FText::FromString(TEXT("整理"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandleSort)]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).Text(FText::FromString(TEXT("整理"))).OnClicked(this, &SDOInventoryEquipmentPanel::HandleSort)]
 		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[
 			SNew(SButton)
+			.ButtonStyle(&FDOInventoryStyle::GetButtonStyle())
 			.IsEnabled_Lambda([this]
 			{
 				const FDOInventorySlotViewModel* Slot = GetSelectedSlot();
@@ -950,9 +935,9 @@ TSharedRef<SWidget> SDOInventoryEquipmentPanel::BuildActionBar()
 			.ToolTipText(FText::FromString(TEXT("选择可丢弃物品后丢弃。")))
 			.Text(FText::FromString(TEXT("丢弃")))
 			.OnClicked(this, &SDOInventoryEquipmentPanel::HandleDiscard)]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).IsEnabled(false).ToolTipText(FText::FromString(TEXT("出售功能将在商店交互系统接入后启用。"))).Text(FText::FromString(TEXT("出售")))]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).IsEnabled(false).ToolTipText(FText::FromString(TEXT("仓库功能将在仓库交互系统接入后启用。"))).Text(FText::FromString(TEXT("仓库")))]
-		+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).IsEnabled(false).ToolTipText(FText::FromString(TEXT("修理功能将在耐久和修理系统接入后启用。"))).Text(FText::FromString(TEXT("修理")))];
+		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).IsEnabled(false).ToolTipText(FText::FromString(TEXT("出售功能将在商店交互系统接入后启用。"))).Text(FText::FromString(TEXT("出售")))]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f)[SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).IsEnabled(false).ToolTipText(FText::FromString(TEXT("仓库功能将在仓库交互系统接入后启用。"))).Text(FText::FromString(TEXT("仓库")))]
+		+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).ButtonStyle(&FDOInventoryStyle::GetButtonStyle()).IsEnabled(false).ToolTipText(FText::FromString(TEXT("修理功能将在耐久和修理系统接入后启用。"))).Text(FText::FromString(TEXT("修理")))];
 }
 
 TSharedRef<ITableRow> SDOInventoryEquipmentPanel::GenerateInventoryTile(TSharedPtr<FDOInventorySlotViewModel> Item, const TSharedRef<STableViewBase>& OwnerTable)
@@ -988,7 +973,14 @@ void SDOInventoryEquipmentPanel::RefreshTileView()
 {
 	if (InventoryTileView.IsValid())
 	{
-		InventoryTileView->RequestListRefresh();
+		if (ViewModel.IsValid() && ViewModel->ConsumeVisibleSlotStructureChange())
+		{
+			InventoryTileView->RequestListRefresh();
+		}
+		else
+		{
+			InventoryTileView->Invalidate(EInvalidateWidgetReason::Paint);
+		}
 	}
 }
 

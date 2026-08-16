@@ -5,12 +5,15 @@
 #include "Input/DragAndDrop.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STileView.h"
+#include "ItemSystem/Core/DOItemOperationTypes.h"
+#include "UI/Inventory/DOInventorySlotViewModel.h"
+#include "UI/Inventory/DOEquipmentSlotViewModel.h"
 
-struct FDOInventorySlotViewModel;
 class UDOInventoryViewModel;
 struct FSlateBrush;
 class SOverlay;
 class SMenuAnchor;
+class SVerticalBox;
 
 DECLARE_DELEGATE_OneParam(FDOOnInventorySlotSelected, const FGuid&);
 DECLARE_DELEGATE_OneParam(FDOOnInventorySlotActivated, const FGuid&);
@@ -39,6 +42,7 @@ public:
 	DRAG_DROP_OPERATOR_TYPE(FDOInventoryDragDropOperation, FDragDropOperation)
 
 	FGuid InstanceId;
+	EDOItemOperationDomain SourceDomain = EDOItemOperationDomain::Inventory;
 	int32 SourceSlotIndex = INDEX_NONE;
 	int32 RequestedCount = 0;
 	bool bSplitRequested = false;
@@ -108,6 +112,7 @@ private:
 	TSharedPtr<SMenuAnchor> ContextMenuAnchor;
 	FSoftObjectPath RequestedIconPath;
 	TSharedPtr<FSlateBrush> LoadedIconBrush;
+	FGuid RequestedInstanceId;
 };
 
 /** 装备槽拖放目标。装备外观不属于此控件，槽位只显示装备数据并发起装备请求。 */
@@ -116,6 +121,7 @@ class SDOEquipmentSlotWidget : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SDOEquipmentSlotWidget) {}
 		SLATE_ARGUMENT(TWeakObjectPtr<UDOInventoryViewModel>, ViewModel)
+		SLATE_ARGUMENT(TSharedPtr<FDOEquipmentSlotViewModel>, SlotViewModel)
 		SLATE_ARGUMENT(FGameplayTag, SlotTag)
 		SLATE_ARGUMENT(FText, DisplayName)
 		SLATE_EVENT(FDOOnEquipmentSlotDropped, OnDropped)
@@ -133,12 +139,17 @@ private:
 	FSlateColor GetBorderColor() const;
 	FText GetSlotText() const;
 	FText GetTooltipText() const;
+	const FSlateBrush* GetIconBrush() const;
+	void RequestIconLoad();
 
 	TWeakObjectPtr<UDOInventoryViewModel> ViewModel;
+	TSharedPtr<FDOEquipmentSlotViewModel> SlotViewModel;
 	FGameplayTag SlotTag;
 	FText DisplayName;
 	FDOOnEquipmentSlotDropped OnDropped;
 	FDOOnEquipmentSlotClicked OnClicked;
+	FSoftObjectPath RequestedIconPath;
+	TSharedPtr<FSlateBrush> LoadedIconBrush;
 };
 
 /** 背包与装备组合页面的 Slate 根面板。 */
@@ -203,7 +214,7 @@ private:
 	TWeakObjectPtr<UDOInventoryViewModel> ViewModel;
 	FDOOnInventoryCloseRequested OnCloseRequested;
 	TSharedPtr<STileView<TSharedPtr<FDOInventorySlotViewModel>>> InventoryTileView;
-	TSharedPtr<SHorizontalBox> CategoryBox;
+	TSharedPtr<SVerticalBox> CategoryBox;
 	TSharedPtr<SOverlay> RootOverlay;
 	mutable TSharedPtr<FSlateBrush> PreviewBrush;
 	FDelegateHandle ViewModelChangedHandle;

@@ -2,6 +2,8 @@
 
 #include "Input/CommonUIInputTypes.h"
 #include "Framework/Application/SlateApplication.h"
+#include "GameFramework/PlayerController.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "Player/DOPlayerState.h"
 #include "UI/Inventory/DOInventorySlateWidgets.h"
 #include "UI/Inventory/DOInventoryViewModel.h"
@@ -71,6 +73,26 @@ void UDOInventoryScreen::NativeOnDeactivated()
 		ViewModel->Shutdown();
 	}
 	Super::NativeOnDeactivated();
+
+	// CommonUI 在页面关闭时会把输入模式恢复成页面激活前的状态，
+	// 该过程可能把 bShowMouseCursor 重置为 false，导致鼠标消失。
+	// 本项目鼠标要求常驻，因此在页面失活后延迟一帧强制重新显示鼠标，
+	// 避开 CommonUI 输入模式恢复的时序竞争。
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		TWeakObjectPtr<APlayerController> WeakPC(PC);
+		FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[WeakPC]()
+			{
+				if (APlayerController* SafePC = WeakPC.Get())
+				{
+					SafePC->bShowMouseCursor = true;
+					SafePC->DefaultMouseCursor = EMouseCursor::Default;
+					SafePC->CurrentMouseCursor = EMouseCursor::Default;
+				}
+			},
+			TStatId(), nullptr, ENamedThreads::GameThread);
+	}
 }
 
 void UDOInventoryScreen::HandleCloseRequested()

@@ -5,17 +5,18 @@
 #include "AbilitySystem/Attributes/DOResourceSet.h"
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
-#include "Engine/AssetManager.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "ItemSystem/Inventory/DOInventoryComponent.h"
 #include "ItemSystem/Inventory/DOInventoryMessages.h"
 #include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemDefinitionSubsystem.h"
 #include "ItemSystem/Equipment/DOEquipmentComponent.h"
 #include "ItemSystem/QuickBar/DOItemQuickBarComponent.h"
 #include "Player/DOPlayerCharacter.h"
 #include "Player/DOPlayerState.h"
 #include "UI/Inventory/DOCombatRatingConfig.h"
 #include "UI/Inventory/DOInventoryPreviewComponent.h"
+#include "TimerManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOInventoryViewModel)
 
@@ -72,6 +73,10 @@ void UDOInventoryViewModel::Initialize(ADOPlayerState* InPlayerState)
 			DragonOathGameplayTags::Message::UI::Inventory::OperationFailed,
 			this,
 			&UDOInventoryViewModel::HandleOperationFailed);
+		OperationResultHandle = MessageSubsystem.RegisterListener<FDOInventoryOperationResultMessage>(
+			DragonOathGameplayTags::Message::UI::Inventory::OperationResult,
+			this,
+			&UDOInventoryViewModel::HandleOperationResult);
 		QuickBarChangedHandle = MessageSubsystem.RegisterListener<FDOItemQuickBarChangedMessage>(
 			DragonOathGameplayTags::Message::UI::ItemQuickBar::Changed,
 			this,
@@ -80,10 +85,27 @@ void UDOInventoryViewModel::Initialize(ADOPlayerState* InPlayerState)
 			DragonOathGameplayTags::Message::UI::Equipment::OperationFailed,
 			this,
 			&UDOInventoryViewModel::HandleEquipmentOperationFailed);
+		EquipmentOperationResultHandle = MessageSubsystem.RegisterListener<FDOEquipmentOperationResultMessage>(
+			DragonOathGameplayTags::Message::UI::Equipment::OperationResult,
+			this,
+			&UDOInventoryViewModel::HandleEquipmentOperationResult);
 		QuickBarOperationFailedHandle = MessageSubsystem.RegisterListener<FDOItemQuickBarOperationFailedMessage>(
 			DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationFailed,
 			this,
 			&UDOInventoryViewModel::HandleQuickBarOperationFailed);
+		QuickBarOperationResultHandle = MessageSubsystem.RegisterListener<FDOItemQuickBarOperationResultMessage>(
+			DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationResult,
+			this,
+			&UDOInventoryViewModel::HandleQuickBarOperationResult);
+	}
+
+	if (InPlayerState && InPlayerState->GetWorld())
+	{
+		InPlayerState->GetWorld()->GetTimerManager().SetTimer(
+			PendingTimeoutTimerHandle,
+			FTimerDelegate::CreateUObject(this, &UDOInventoryViewModel::ProcessPendingTimeouts),
+			0.5f,
+			true);
 	}
 
 	RegisterAttributeListeners();
@@ -95,11 +117,21 @@ void UDOInventoryViewModel::Shutdown()
 	InventoryChangedHandle.Unregister();
 	EquipmentChangedHandle.Unregister();
 	OperationFailedHandle.Unregister();
+	OperationResultHandle.Unregister();
 	QuickBarChangedHandle.Unregister();
 	EquipmentOperationFailedHandle.Unregister();
+	EquipmentOperationResultHandle.Unregister();
 	QuickBarOperationFailedHandle.Unregister();
+	QuickBarOperationResultHandle.Unregister();
+	if (PlayerState.IsValid() && PlayerState->GetWorld())
+	{
+		PlayerState->GetWorld()->GetTimerManager().ClearTimer(PendingTimeoutTimerHandle);
+	}
 	UnregisterAttributeListeners();
 	PendingOperations.Reset();
+	SlotViewModelCache.Reset();
+	EquipmentSlotViewModelCache.Reset();
+	EquipmentSlots.Reset();
 	PlayerState.Reset();
 	InventoryComponent.Reset();
 	EquipmentComponent.Reset();
@@ -124,17 +156,7 @@ void UDOInventoryViewModel::BeginDestroy()
 
 const UDOItemDefinition* UDOInventoryViewModel::ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const
 {
-	if (!DefinitionId.IsValid())
-	{
-		return nullptr;
-	}
-	UAssetManager& AssetManager = UAssetManager::Get();
-	if (const UDOItemDefinition* LoadedDefinition = AssetManager.GetPrimaryAssetObject<UDOItemDefinition>(DefinitionId))
-	{
-		return LoadedDefinition;
-	}
-	const FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(DefinitionId);
-	return AssetPath.IsValid() ? Cast<UDOItemDefinition>(AssetPath.TryLoad()) : nullptr;
+	return UDOItemDefinitionSubsystem::ResolveItemDefinition(this, DefinitionId);
 }
 
 bool UDOInventoryViewModel::MatchesFilter(const FDOItemInstanceRecord& Item, const UDOItemDefinition* Definition) const
@@ -162,11 +184,25 @@ void UDOInventoryViewModel::Refresh()
 {
 	RefreshAttributeSnapshot();
 	RebuildVisibleSlots();
+	RebuildEquipmentSlots();
 	BroadcastChanged();
 }
 
 void UDOInventoryViewModel::RebuildVisibleSlots()
 {
+	TArray<FGuid> PreviousInstanceIds;
+	TArray<int32> PreviousSlotIndices;
+	TArray<bool> PreviousEmptyStates;
+	PreviousInstanceIds.Reserve(VisibleSlots.Num());
+	PreviousSlotIndices.Reserve(VisibleSlots.Num());
+	PreviousEmptyStates.Reserve(VisibleSlots.Num());
+	for (const TSharedPtr<FDOInventorySlotViewModel>& PreviousSlot : VisibleSlots)
+	{
+		PreviousInstanceIds.Add(PreviousSlot.IsValid() ? PreviousSlot->GetInstanceId() : FGuid());
+		PreviousSlotIndices.Add(PreviousSlot.IsValid() ? PreviousSlot->GetSlotIndex() : INDEX_NONE);
+		PreviousEmptyStates.Add(!PreviousSlot.IsValid() || PreviousSlot->bIsEmpty);
+	}
+
 	VisibleSlots.Reset();
 	TArray<FDOItemInstanceRecord> Items;
 	TSet<FGuid> EquippedInstanceIds;
@@ -184,6 +220,19 @@ void UDOInventoryViewModel::RebuildVisibleSlots()
 		}
 	}
 
+	TSet<FGuid> CurrentInstanceIds;
+	for (const FDOItemInstanceRecord& Item : Items)
+	{
+		CurrentInstanceIds.Add(Item.InstanceId);
+	}
+	for (auto It = SlotViewModelCache.CreateIterator(); It; ++It)
+	{
+		if (!CurrentInstanceIds.Contains(It.Key()))
+		{
+			It.RemoveCurrent();
+		}
+	}
+
 	TArray<TSharedPtr<FDOInventorySlotViewModel>> FilteredSlots;
 	for (const FDOItemInstanceRecord& Item : Items)
 	{
@@ -193,7 +242,13 @@ void UDOInventoryViewModel::RebuildVisibleSlots()
 			continue;
 		}
 
-		TSharedPtr<FDOInventorySlotViewModel> Slot = MakeShared<FDOInventorySlotViewModel>();
+		TSharedPtr<FDOInventorySlotViewModel>& CachedSlot = SlotViewModelCache.FindOrAdd(Item.InstanceId);
+		if (!CachedSlot.IsValid())
+		{
+			CachedSlot = MakeShared<FDOInventorySlotViewModel>();
+		}
+		TSharedPtr<FDOInventorySlotViewModel> Slot = CachedSlot;
+		*Slot = FDOInventorySlotViewModel();
 		Slot->Item = Item;
 		Slot->bIsEmpty = false;
 		Slot->bIsEquipped = EquippedInstanceIds.Contains(Item.InstanceId);
@@ -263,6 +318,121 @@ void UDOInventoryViewModel::RebuildVisibleSlots()
 	{
 		SelectedInstanceId.Invalidate();
 	}
+
+	bVisibleSlotsStructureChanged = PreviousInstanceIds.Num() != VisibleSlots.Num();
+	if (!bVisibleSlotsStructureChanged)
+	{
+		for (int32 Index = 0; Index < VisibleSlots.Num(); ++Index)
+		{
+			const TSharedPtr<FDOInventorySlotViewModel>& CurrentSlot = VisibleSlots[Index];
+			const FGuid CurrentInstanceId = CurrentSlot.IsValid() ? CurrentSlot->GetInstanceId() : FGuid();
+			const int32 CurrentSlotIndex = CurrentSlot.IsValid() ? CurrentSlot->GetSlotIndex() : INDEX_NONE;
+			const bool bCurrentEmpty = !CurrentSlot.IsValid() || CurrentSlot->bIsEmpty;
+			if (PreviousInstanceIds[Index] != CurrentInstanceId
+				|| PreviousSlotIndices[Index] != CurrentSlotIndex
+				|| PreviousEmptyStates[Index] != bCurrentEmpty)
+			{
+				bVisibleSlotsStructureChanged = true;
+				break;
+			}
+		}
+	}
+}
+
+void UDOInventoryViewModel::RebuildEquipmentSlots()
+{
+	TArray<FDOEquippedItemEntry> EquippedItems;
+	if (EquipmentComponent.IsValid())
+	{
+		EquipmentComponent->GetEquippedSnapshot(EquippedItems);
+	}
+
+	TSet<FGameplayTag> CurrentSlotTags;
+	TArray<FGameplayTag> SupportedSlotTags;
+	if (EquipmentComponent.IsValid())
+	{
+		EquipmentComponent->GetSupportedSlotTags(SupportedSlotTags);
+	}
+	for (const FGameplayTag& SlotTag : SupportedSlotTags)
+	{
+		CurrentSlotTags.Add(SlotTag);
+		TSharedPtr<FDOEquipmentSlotViewModel>& CachedSlot = EquipmentSlotViewModelCache.FindOrAdd(SlotTag);
+		if (!CachedSlot.IsValid())
+		{
+			CachedSlot = MakeShared<FDOEquipmentSlotViewModel>();
+		}
+		*CachedSlot = FDOEquipmentSlotViewModel();
+		CachedSlot->SlotTag = SlotTag;
+		CachedSlot->DisplayName = FText::FromName(SlotTag.GetTagName());
+		CachedSlot->ItemDisplayName = FText::GetEmpty();
+		CachedSlot->bIsEmpty = true;
+		CachedSlot->bIsPending = false;
+	}
+	for (const FDOEquippedItemEntry& Entry : EquippedItems)
+	{
+		CurrentSlotTags.Add(Entry.SlotTag);
+		TSharedPtr<FDOEquipmentSlotViewModel>& CachedSlot = EquipmentSlotViewModelCache.FindOrAdd(Entry.SlotTag);
+		if (!CachedSlot.IsValid())
+		{
+			CachedSlot = MakeShared<FDOEquipmentSlotViewModel>();
+		}
+		*CachedSlot = FDOEquipmentSlotViewModel();
+		CachedSlot->SlotTag = Entry.SlotTag;
+		CachedSlot->DisplayName = FText::FromName(Entry.SlotTag.GetTagName());
+		CachedSlot->Item = Entry.Item;
+		CachedSlot->bIsEmpty = false;
+		if (const UDOItemDefinition* Definition = ResolveItemDefinition(Entry.Item.DefinitionId))
+		{
+			CachedSlot->ItemDisplayName = Definition->DisplayName;
+			CachedSlot->Icon = Definition->Icon;
+			CachedSlot->Rarity = Definition->Rarity;
+		}
+		for (const TPair<int32, FDOInventoryPendingOperation>& PendingPair : PendingOperations)
+		{
+			if (PendingPair.Value.Domain == EDOInventoryPendingDomain::Equipment && PendingPair.Value.SlotTag == Entry.SlotTag)
+			{
+				CachedSlot->bIsPending = true;
+				break;
+			}
+		}
+	}
+	for (auto It = EquipmentSlotViewModelCache.CreateIterator(); It; ++It)
+	{
+		if (!CurrentSlotTags.Contains(It.Key()))
+		{
+			It.RemoveCurrent();
+		}
+	}
+
+	EquipmentSlots.Reset();
+	for (const TPair<FGameplayTag, TSharedPtr<FDOEquipmentSlotViewModel>>& Pair : EquipmentSlotViewModelCache)
+	{
+		EquipmentSlots.Add(Pair.Value);
+	}
+	EquipmentSlots.Sort([](const TSharedPtr<FDOEquipmentSlotViewModel>& A, const TSharedPtr<FDOEquipmentSlotViewModel>& B)
+	{
+		return A.IsValid() && B.IsValid() && A->SlotTag.ToString() < B->SlotTag.ToString();
+	});
+}
+
+const FDOEquipmentSlotViewModel* UDOInventoryViewModel::FindEquipmentSlot(const FGameplayTag& SlotTag) const
+{
+	if (const TSharedPtr<FDOEquipmentSlotViewModel>* Slot = EquipmentSlotViewModelCache.Find(SlotTag))
+	{
+		return Slot->Get();
+	}
+	return nullptr;
+}
+
+TSharedPtr<FDOEquipmentSlotViewModel> UDOInventoryViewModel::GetOrCreateEquipmentSlot(const FGameplayTag& SlotTag)
+{
+	TSharedPtr<FDOEquipmentSlotViewModel>& Slot = EquipmentSlotViewModelCache.FindOrAdd(SlotTag);
+	if (!Slot.IsValid())
+	{
+		Slot = MakeShared<FDOEquipmentSlotViewModel>();
+		Slot->SlotTag = SlotTag;
+	}
+	return Slot;
 }
 
 void UDOInventoryViewModel::SetFilter(const FGameplayTag NewFilter)
@@ -425,7 +595,6 @@ void UDOInventoryViewModel::HandleInventoryChanged(FGameplayTag /*Channel*/, con
 {
 	if (Message.InventoryComponent == InventoryComponent.Get())
 	{
-		ClearPendingOperationsForDomain(EDOInventoryPendingDomain::Inventory);
 		Refresh();
 	}
 }
@@ -434,7 +603,6 @@ void UDOInventoryViewModel::HandleEquipmentChanged(FGameplayTag /*Channel*/, con
 {
 	if (Message.EquipmentComponent == EquipmentComponent.Get())
 	{
-		ClearPendingOperationsForDomain(EDOInventoryPendingDomain::Equipment);
 		Refresh();
 	}
 }
@@ -448,11 +616,28 @@ void UDOInventoryViewModel::HandleOperationFailed(FGameplayTag /*Channel*/, cons
 	}
 }
 
+void UDOInventoryViewModel::HandleOperationResult(FGameplayTag /*Channel*/, const FDOInventoryOperationResultMessage& Message)
+{
+	if (Message.InventoryComponent == InventoryComponent.Get())
+	{
+		ClearPendingOperation(Message.Result.ClientOperationId);
+		Refresh();
+	}
+}
+
 void UDOInventoryViewModel::HandleQuickBarChanged(FGameplayTag /*Channel*/, const FDOItemQuickBarChangedMessage& Message)
 {
 	if (PlayerState.IsValid() && Message.QuickBarComponent == PlayerState->GetItemQuickBarComponent())
 	{
-		ClearPendingOperationsForDomain(EDOInventoryPendingDomain::QuickBar);
+		Refresh();
+	}
+}
+
+void UDOInventoryViewModel::HandleEquipmentOperationResult(FGameplayTag /*Channel*/, const FDOEquipmentOperationResultMessage& Message)
+{
+	if (Message.EquipmentComponent == EquipmentComponent.Get())
+	{
+		ClearPendingOperation(Message.Result.ClientOperationId);
 		Refresh();
 	}
 }
@@ -462,6 +647,15 @@ void UDOInventoryViewModel::HandleEquipmentOperationFailed(FGameplayTag /*Channe
 	if (Message.EquipmentComponent == EquipmentComponent.Get())
 	{
 		ClearPendingOperation(Message.ClientOperationId);
+		Refresh();
+	}
+}
+
+void UDOInventoryViewModel::HandleQuickBarOperationResult(FGameplayTag /*Channel*/, const FDOItemQuickBarOperationResultMessage& Message)
+{
+	if (PlayerState.IsValid() && Message.QuickBarComponent == PlayerState->GetItemQuickBarComponent())
+	{
+		ClearPendingOperation(Message.Result.ClientOperationId);
 		Refresh();
 	}
 }
@@ -571,6 +765,7 @@ int32 UDOInventoryViewModel::BeginPendingOperation(const EDOInventoryPendingDoma
 	Operation.Domain = Domain;
 	Operation.InstanceId = InstanceId;
 	Operation.SlotTag = SlotTag;
+	Operation.CreatedAtSeconds = FPlatformTime::Seconds();
 	BroadcastChanged();
 	return OperationId;
 }
@@ -591,6 +786,24 @@ void UDOInventoryViewModel::ClearPendingOperationsForDomain(const EDOInventoryPe
 		{
 			It.RemoveCurrent();
 		}
+	}
+}
+
+void UDOInventoryViewModel::ProcessPendingTimeouts()
+{
+	const double Now = FPlatformTime::Seconds();
+	bool bChanged = false;
+	for (auto It = PendingOperations.CreateIterator(); It; ++It)
+	{
+		if (Now - It.Value().CreatedAtSeconds > 5.0)
+		{
+			It.RemoveCurrent();
+			bChanged = true;
+		}
+	}
+	if (bChanged)
+	{
+		Refresh();
 	}
 }
 

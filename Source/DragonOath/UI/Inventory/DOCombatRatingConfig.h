@@ -50,34 +50,34 @@ class DRAGONOATH_API UDOCombatRatingConfig : public UDataAsset
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power", meta = (DisplayName = "战力：攻击力权重"))
 	float CombatAttackPowerWeight = 1.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power", meta = (DisplayName = "战力：暴击率权重"))
 	float CombatCriticalRatingWeight = 0.35f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power", meta = (DisplayName = "战力：命中率权重"))
 	float CombatHitRatingWeight = 0.25f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power", meta = (DisplayName = "战力：攻击速度权重"))
 	float CombatAttackSpeedWeight = 10.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat Power", meta = (DisplayName = "战力：吸血率权重"))
 	float CombatLifeStealRateWeight = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power", meta = (DisplayName = "守护力：防御力权重"))
 	float GuardDefensePowerWeight = 1.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power", meta = (DisplayName = "守护力：最大生命值权重"))
 	float GuardMaxHealthWeight = 0.25f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power", meta = (DisplayName = "守护力：最大法力值权重"))
 	float GuardMaxManaWeight = 0.10f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power", meta = (DisplayName = "守护力：闪避率权重"))
 	float GuardEvasionRatingWeight = 0.35f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Guard Power", meta = (DisplayName = "守护力：移动速度权重"))
 	float GuardMoveSpeedWeight = 0.10f;
 };
 

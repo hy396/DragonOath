@@ -7,6 +7,8 @@
 #include "UObject/Object.h"
 
 #include "ItemSystem/Inventory/DOInventoryTypes.h"
+#include "UI/Inventory/DOInventorySlotViewModel.h"
+#include "UI/Inventory/DOEquipmentSlotViewModel.h"
 
 #include "DOInventoryViewModel.generated.h"
 
@@ -20,25 +22,6 @@ class UDOInventoryPreviewComponent;
 class UTextureRenderTarget2D;
 
 /** 单个 Slate 物品格使用的本地显示快照，不保存权威组件指针。 */
-struct DRAGONOATH_API FDOInventorySlotViewModel
-{
-	FDOItemInstanceRecord Item;
-	FText DisplayName;
-	FText Description;
-	TSoftObjectPtr<UTexture2D> Icon;
-	FGameplayTag ItemType;
-	FGameplayTag Rarity;
-	FGameplayTag EquipmentSlotTag;
-	bool bIsEmpty = true;
-	bool bIsEquipped = false;
-	bool bIsUsable = false;
-	bool bCanDiscard = true;
-	bool bIsPending = false;
-
-	FGuid GetInstanceId() const { return Item.InstanceId; }
-	int32 GetSlotIndex() const { return Item.SlotIndex; }
-};
-
 /** 背包分类按钮的本地配置。 */
 struct DRAGONOATH_API FDOInventoryCategoryOption
 {
@@ -78,6 +61,7 @@ struct FDOInventoryPendingOperation
 	EDOInventoryPendingDomain Domain = EDOInventoryPendingDomain::Inventory;
 	FGuid InstanceId;
 	FGameplayTag SlotTag;
+	double CreatedAtSeconds = 0.0;
 };
 
 /**
@@ -99,6 +83,16 @@ public:
 
 	const TArray<TSharedPtr<FDOInventorySlotViewModel>>& GetVisibleSlots() const { return VisibleSlots; }
 	TArray<TSharedPtr<FDOInventorySlotViewModel>>& GetVisibleSlotsMutable() { return VisibleSlots; }
+	bool DidVisibleSlotStructureChange() const { return bVisibleSlotsStructureChanged; }
+	bool ConsumeVisibleSlotStructureChange()
+	{
+		const bool bChanged = bVisibleSlotsStructureChanged;
+		bVisibleSlotsStructureChanged = false;
+		return bChanged;
+	}
+	const TArray<TSharedPtr<FDOEquipmentSlotViewModel>>& GetEquipmentSlots() const { return EquipmentSlots; }
+	const FDOEquipmentSlotViewModel* FindEquipmentSlot(const FGameplayTag& SlotTag) const;
+	TSharedPtr<FDOEquipmentSlotViewModel> GetOrCreateEquipmentSlot(const FGameplayTag& SlotTag);
 	const TArray<FDOInventoryCategoryOption>& GetCategories() const { return Categories; }
 	const FDOInventoryAttributeSnapshot& GetAttributeSnapshot() const { return AttributeSnapshot; }
 
@@ -143,9 +137,12 @@ private:
 	void HandleInventoryChanged(FGameplayTag Channel, const struct FDOInventoryChangedMessage& Message);
 	void HandleEquipmentChanged(FGameplayTag Channel, const struct FDOEquipmentChangedMessage& Message);
 	void HandleOperationFailed(FGameplayTag Channel, const struct FDOInventoryOperationFailedMessage& Message);
+	void HandleOperationResult(FGameplayTag Channel, const struct FDOInventoryOperationResultMessage& Message);
 	void HandleQuickBarChanged(FGameplayTag Channel, const struct FDOItemQuickBarChangedMessage& Message);
 	void HandleEquipmentOperationFailed(FGameplayTag Channel, const struct FDOEquipmentOperationFailedMessage& Message);
+	void HandleEquipmentOperationResult(FGameplayTag Channel, const struct FDOEquipmentOperationResultMessage& Message);
 	void HandleQuickBarOperationFailed(FGameplayTag Channel, const struct FDOItemQuickBarOperationFailedMessage& Message);
+	void HandleQuickBarOperationResult(FGameplayTag Channel, const struct FDOItemQuickBarOperationResultMessage& Message);
 	void HandleAttributeChanged(const FOnAttributeChangeData& ChangeData);
 	void RegisterAttributeListeners();
 	void UnregisterAttributeListeners();
@@ -153,10 +150,12 @@ private:
 	const UDOItemDefinition* ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const;
 	bool MatchesFilter(const FDOItemInstanceRecord& Item, const UDOItemDefinition* Definition) const;
 	void RebuildVisibleSlots();
+	void RebuildEquipmentSlots();
 	void BroadcastChanged();
 	int32 BeginPendingOperation(EDOInventoryPendingDomain Domain, const FGuid& InstanceId = FGuid(), const FGameplayTag& SlotTag = FGameplayTag());
 	void ClearPendingOperation(int32 ClientOperationId);
 	void ClearPendingOperationsForDomain(EDOInventoryPendingDomain Domain);
+	void ProcessPendingTimeouts();
 
 	TWeakObjectPtr<ADOPlayerState> PlayerState;
 	TWeakObjectPtr<UDOInventoryComponent> InventoryComponent;
@@ -166,6 +165,10 @@ private:
 
 	TArray<FDOInventoryCategoryOption> Categories;
 	TArray<TSharedPtr<FDOInventorySlotViewModel>> VisibleSlots;
+	bool bVisibleSlotsStructureChanged = true;
+	TArray<TSharedPtr<FDOEquipmentSlotViewModel>> EquipmentSlots;
+	TMap<FGuid, TSharedPtr<FDOInventorySlotViewModel>> SlotViewModelCache;
+	TMap<FGameplayTag, TSharedPtr<FDOEquipmentSlotViewModel>> EquipmentSlotViewModelCache;
 	FDOInventoryAttributeSnapshot AttributeSnapshot;
 	TArray<TPair<FGameplayAttribute, FDelegateHandle>> AttributeChangeHandles;
 
@@ -176,12 +179,16 @@ private:
 	int32 NextClientOperationId = 1;
 	static constexpr int32 PageSize = 20;
 	TMap<int32, FDOInventoryPendingOperation> PendingOperations;
+	FTimerHandle PendingTimeoutTimerHandle;
 
 	FDOInventoryViewModelChanged ChangedDelegate;
 	FGameplayMessageListenerHandle InventoryChangedHandle;
 	FGameplayMessageListenerHandle EquipmentChangedHandle;
 	FGameplayMessageListenerHandle OperationFailedHandle;
+	FGameplayMessageListenerHandle OperationResultHandle;
 	FGameplayMessageListenerHandle QuickBarChangedHandle;
 	FGameplayMessageListenerHandle EquipmentOperationFailedHandle;
+	FGameplayMessageListenerHandle EquipmentOperationResultHandle;
 	FGameplayMessageListenerHandle QuickBarOperationFailedHandle;
+	FGameplayMessageListenerHandle QuickBarOperationResultHandle;
 };
