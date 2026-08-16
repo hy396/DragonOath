@@ -1,13 +1,14 @@
 #include "ItemSystem/QuickBar/DOItemQuickBarViewModel.h"
 
-#include "Engine/AssetManager.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
 #include "ItemSystem/Inventory/DOInventoryComponent.h"
 #include "ItemSystem/Inventory/DOInventoryMessages.h"
 #include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemDefinitionSubsystem.h"
 #include "ItemSystem/QuickBar/DOItemQuickBarComponent.h"
 #include "Player/DOPlayerState.h"
+#include "TimerManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DOItemQuickBarViewModel)
 
@@ -33,6 +34,18 @@ void UDOItemQuickBarViewModel::Initialize(ADOPlayerState* InPlayerState)
 			DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationFailed,
 			this,
 			&UDOItemQuickBarViewModel::HandleOperationFailed);
+		OperationResultHandle = MessageSubsystem.RegisterListener<FDOItemQuickBarOperationResultMessage>(
+			DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationResult,
+			this,
+			&UDOItemQuickBarViewModel::HandleOperationResult);
+	}
+	if (InPlayerState && InPlayerState->GetWorld())
+	{
+		InPlayerState->GetWorld()->GetTimerManager().SetTimer(
+			PendingTimeoutTimerHandle,
+			FTimerDelegate::CreateUObject(this, &UDOItemQuickBarViewModel::ProcessPendingTimeouts),
+			0.5f,
+			true);
 	}
 
 	Refresh();
@@ -43,8 +56,15 @@ void UDOItemQuickBarViewModel::Shutdown()
 	InventoryChangedHandle.Unregister();
 	QuickBarChangedHandle.Unregister();
 	OperationFailedHandle.Unregister();
+	OperationResultHandle.Unregister();
+	if (PlayerState.IsValid() && PlayerState->GetWorld())
+	{
+		PlayerState->GetWorld()->GetTimerManager().ClearTimer(PendingTimeoutTimerHandle);
+	}
 	Slots.Reset();
+	SlotViewModelCache.Reset();
 	PendingOperations.Reset();
+	PendingOperationTimes.Reset();
 	PlayerState.Reset();
 	InventoryComponent.Reset();
 	QuickBarComponent.Reset();
@@ -62,7 +82,13 @@ void UDOItemQuickBarViewModel::Refresh()
 
 	for (int32 SlotIndex = 0; SlotIndex < UDOItemQuickBarComponent::QuickBarSlotCount; ++SlotIndex)
 	{
-		TSharedPtr<FDOQuickBarSlotViewModel> Slot = MakeShared<FDOQuickBarSlotViewModel>();
+		TSharedPtr<FDOQuickBarSlotViewModel>& CachedSlot = SlotViewModelCache.FindOrAdd(SlotIndex);
+		if (!CachedSlot.IsValid())
+		{
+			CachedSlot = MakeShared<FDOQuickBarSlotViewModel>();
+		}
+		TSharedPtr<FDOQuickBarSlotViewModel> Slot = CachedSlot;
+		*Slot = FDOQuickBarSlotViewModel();
 		if (QuickBarComponent.IsValid())
 		{
 			Slot->DefinitionId = QuickBarComponent->GetDefinitionForSlot(SlotIndex);
@@ -113,6 +139,7 @@ void UDOItemQuickBarViewModel::RequestUseSlot(const int32 SlotIndex)
 	{
 		const int32 OperationId = NextClientOperationId++;
 		PendingOperations.Add(OperationId, SlotIndex);
+		PendingOperationTimes.Add(OperationId, FPlatformTime::Seconds());
 		BroadcastChanged();
 		QuickBarComponent->RequestUseSlot(SlotIndex, OperationId);
 	}
@@ -128,7 +155,6 @@ void UDOItemQuickBarViewModel::HandleInventoryChanged(FGameplayTag /*Channel*/, 
 {
 	if (Message.InventoryComponent == InventoryComponent.Get())
 	{
-		PendingOperations.Reset();
 		Refresh();
 	}
 }
@@ -137,7 +163,6 @@ void UDOItemQuickBarViewModel::HandleQuickBarChanged(FGameplayTag /*Channel*/, c
 {
 	if (Message.QuickBarComponent == QuickBarComponent.Get())
 	{
-		PendingOperations.Reset();
 		Refresh();
 	}
 }
@@ -147,28 +172,46 @@ void UDOItemQuickBarViewModel::HandleOperationFailed(FGameplayTag /*Channel*/, c
 	if (Message.QuickBarComponent == QuickBarComponent.Get())
 	{
 		PendingOperations.Remove(Message.ClientOperationId);
+		PendingOperationTimes.Remove(Message.ClientOperationId);
+		Refresh();
+	}
+}
+
+void UDOItemQuickBarViewModel::HandleOperationResult(FGameplayTag /*Channel*/, const FDOItemQuickBarOperationResultMessage& Message)
+{
+	if (Message.QuickBarComponent == QuickBarComponent.Get())
+	{
+		PendingOperations.Remove(Message.Result.ClientOperationId);
+		PendingOperationTimes.Remove(Message.Result.ClientOperationId);
 		Refresh();
 	}
 }
 
 const UDOItemDefinition* UDOItemQuickBarViewModel::ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const
 {
-	if (!DefinitionId.IsValid())
-	{
-		return nullptr;
-	}
-
-	UAssetManager& AssetManager = UAssetManager::Get();
-	if (const UDOItemDefinition* LoadedDefinition = AssetManager.GetPrimaryAssetObject<UDOItemDefinition>(DefinitionId))
-	{
-		return LoadedDefinition;
-	}
-
-	const FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(DefinitionId);
-	return AssetPath.IsValid() ? Cast<UDOItemDefinition>(AssetPath.TryLoad()) : nullptr;
+	return UDOItemDefinitionSubsystem::ResolveItemDefinition(this, DefinitionId);
 }
 
 void UDOItemQuickBarViewModel::BroadcastChanged()
 {
 	ChangedDelegate.Broadcast();
+}
+
+void UDOItemQuickBarViewModel::ProcessPendingTimeouts()
+{
+	const double Now = FPlatformTime::Seconds();
+	bool bChanged = false;
+	for (auto It = PendingOperationTimes.CreateIterator(); It; ++It)
+	{
+		if (Now - It.Value() > 5.0)
+		{
+			PendingOperations.Remove(It.Key());
+			It.RemoveCurrent();
+			bChanged = true;
+		}
+	}
+	if (bChanged)
+	{
+		Refresh();
+	}
 }

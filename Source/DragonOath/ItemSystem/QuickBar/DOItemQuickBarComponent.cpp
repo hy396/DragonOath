@@ -2,11 +2,11 @@
 
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "AbilitySystem/Core/DOGameplayTag.h"
-#include "Engine/AssetManager.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "ItemSystem/Inventory/DOInventoryComponent.h"
 #include "ItemSystem/Inventory/DOInventoryMessages.h"
 #include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemDefinitionSubsystem.h"
 #include "Player/DOPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
@@ -23,6 +23,20 @@ void UDOItemQuickBarComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	QuickBarDefinitions.SetNum(QuickBarSlotCount);
+	if (UGameplayMessageSubsystem::HasInstance(this))
+	{
+		InventoryOperationResultHandle = UGameplayMessageSubsystem::Get(this).RegisterListener<FDOInventoryOperationResultMessage>(
+			DragonOathGameplayTags::Message::UI::Inventory::OperationResult,
+			this,
+			&UDOItemQuickBarComponent::HandleInventoryOperationResult);
+	}
+}
+
+void UDOItemQuickBarComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	InventoryOperationResultHandle.Unregister();
+	DelegatedUseOperationIds.Reset();
+	Super::EndPlay(EndPlayReason);
 }
 
 void UDOItemQuickBarComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -49,16 +63,6 @@ bool UDOItemQuickBarComponent::RestoreQuickBarSnapshot(const TArray<FPrimaryAsse
 		return false;
 	}
 
-	const ADOPlayerState* PlayerState = Cast<ADOPlayerState>(GetOwner());
-	const UDOInventoryComponent* Inventory = PlayerState ? PlayerState->GetInventoryComponent() : nullptr;
-	if (!Inventory)
-	{
-		return false;
-	}
-
-	TArray<FDOItemInstanceRecord> Items;
-	Inventory->GetInventorySnapshot(Items);
-
 	for (const FPrimaryAssetId& DefinitionId : Definitions)
 	{
 		if (!DefinitionId.IsValid())
@@ -72,13 +76,6 @@ bool UDOItemQuickBarComponent::RestoreQuickBarSnapshot(const TArray<FPrimaryAsse
 			return false;
 		}
 
-		if (!Items.ContainsByPredicate([&DefinitionId](const FDOItemInstanceRecord& Item)
-		{
-			return Item.DefinitionId == DefinitionId;
-		}))
-		{
-			return false;
-		}
 	}
 
 	QuickBarDefinitions = Definitions;
@@ -89,19 +86,7 @@ bool UDOItemQuickBarComponent::RestoreQuickBarSnapshot(const TArray<FPrimaryAsse
 
 const UDOItemDefinition* UDOItemQuickBarComponent::ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const
 {
-	if (!DefinitionId.IsValid())
-	{
-		return nullptr;
-	}
-
-	UAssetManager& AssetManager = UAssetManager::Get();
-	if (const UDOItemDefinition* LoadedDefinition = AssetManager.GetPrimaryAssetObject<UDOItemDefinition>(DefinitionId))
-	{
-		return LoadedDefinition;
-	}
-
-	const FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(DefinitionId);
-	return AssetPath.IsValid() ? Cast<UDOItemDefinition>(AssetPath.TryLoad()) : nullptr;
+	return UDOItemDefinitionSubsystem::ResolveItemDefinition(this, DefinitionId);
 }
 
 void UDOItemQuickBarComponent::RequestAssignDefinition(const int32 SlotIndex, const FPrimaryAssetId DefinitionId, const int32 ClientOperationId)
@@ -118,6 +103,10 @@ void UDOItemQuickBarComponent::RequestAssignDefinition(const int32 SlotIndex, co
 
 void UDOItemQuickBarComponent::RequestUseSlot(const int32 SlotIndex, const int32 ClientOperationId)
 {
+	if (ClientOperationId > 0)
+	{
+		DelegatedUseOperationIds.Add(ClientOperationId);
+	}
 	if (GetOwner() && GetOwner()->HasAuthority())
 	{
 		Server_RequestUseSlot_Implementation(SlotIndex, ClientOperationId);
@@ -138,9 +127,15 @@ void UDOItemQuickBarComponent::Server_RequestAssignDefinition_Implementation(con
 
 	if (!DefinitionId.IsValid())
 	{
+		if (!QuickBarDefinitions[SlotIndex].IsValid())
+		{
+			Client_QuickBarOperationResultEx(ClientOperationId, EDOItemOperationOutcome::NoOp, EDOInventoryFailureReason::None, Revision);
+			return;
+		}
 		QuickBarDefinitions[SlotIndex] = FPrimaryAssetId();
 		++Revision;
 		BroadcastChanged();
+		Client_QuickBarOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 		return;
 	}
 
@@ -164,10 +159,16 @@ void UDOItemQuickBarComponent::Server_RequestAssignDefinition_Implementation(con
 		Client_QuickBarOperationResult(ClientOperationId, false, EDOInventoryFailureReason::ItemNotFound);
 		return;
 	}
+	if (QuickBarDefinitions[SlotIndex] == DefinitionId)
+	{
+		Client_QuickBarOperationResultEx(ClientOperationId, EDOItemOperationOutcome::NoOp, EDOInventoryFailureReason::None, Revision);
+		return;
+	}
 
 	QuickBarDefinitions[SlotIndex] = DefinitionId;
 	++Revision;
 	BroadcastChanged();
+	Client_QuickBarOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 }
 
 void UDOItemQuickBarComponent::Server_RequestUseSlot_Implementation(const int32 SlotIndex, const int32 ClientOperationId)
@@ -188,18 +189,72 @@ void UDOItemQuickBarComponent::Server_RequestUseSlot_Implementation(const int32 
 	}
 
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
-	if (!Inventory->TryUseItemByDefinition(DefinitionId, FailureReason))
+	bool bDeferredCompletion = false;
+	if (!Inventory->TryUseItemByDefinition(DefinitionId, FailureReason, ClientOperationId, &bDeferredCompletion))
 	{
 		Client_QuickBarOperationResult(ClientOperationId, false, FailureReason);
+		return;
 	}
+	if (bDeferredCompletion)
+	{
+		// Ability/Event 会在 CommitItemUse 或取消时由 Inventory 广播终态，不能提前回 Success。
+		return;
+	}
+	Client_QuickBarOperationResultEx(ClientOperationId, EDOItemOperationOutcome::Success, EDOInventoryFailureReason::None, Revision);
 }
 
 void UDOItemQuickBarComponent::Client_QuickBarOperationResult_Implementation(const int32 ClientOperationId, const bool bSuccess, const EDOInventoryFailureReason FailureReason)
 {
+	DelegatedUseOperationIds.Remove(ClientOperationId);
 	if (!bSuccess)
 	{
 		BroadcastOperationFailure(ClientOperationId, FailureReason);
 	}
+	BroadcastOperationResult(ClientOperationId, bSuccess ? EDOItemOperationOutcome::Success : EDOItemOperationOutcome::Failure, FailureReason, Revision);
+}
+
+void UDOItemQuickBarComponent::Client_QuickBarOperationResultEx_Implementation(const int32 ClientOperationId, const EDOItemOperationOutcome Outcome, const EDOInventoryFailureReason FailureReason, const int32 AuthoritativeRevision)
+{
+	DelegatedUseOperationIds.Remove(ClientOperationId);
+	if (Outcome == EDOItemOperationOutcome::Failure)
+	{
+		BroadcastOperationFailure(ClientOperationId, FailureReason);
+	}
+	BroadcastOperationResult(ClientOperationId, Outcome, FailureReason, AuthoritativeRevision);
+
+	if (AuthoritativeRevision > Revision && GetOwner() && GetOwner()->HasAuthority())
+	{
+		Revision = AuthoritativeRevision;
+	}
+}
+
+void UDOItemQuickBarComponent::HandleInventoryOperationResult(FGameplayTag /*Channel*/, const FDOInventoryOperationResultMessage& Message)
+{
+	if (!Message.InventoryComponent || !GetOwner() || GetOwner()->HasAuthority())
+	{
+		return;
+	}
+
+	const int32 OperationId = Message.Result.ClientOperationId;
+	if (OperationId <= 0 || !DelegatedUseOperationIds.Contains(OperationId))
+	{
+		return;
+	}
+
+	ADOPlayerState* PlayerState = Cast<ADOPlayerState>(GetOwner());
+	if (!PlayerState || Message.InventoryComponent != PlayerState->GetInventoryComponent())
+	{
+		return;
+	}
+
+	DelegatedUseOperationIds.Remove(OperationId);
+	if (Message.Result.Outcome == EDOItemOperationOutcome::Failure)
+	{
+		BroadcastOperationFailure(OperationId, Message.Result.FailureReason);
+	}
+	// QuickBar 是对外的操作域，Revision 使用 QuickBar 自己的复制版本；
+	// Inventory 的权威 Revision 仍保留在原始 Inventory 消息中。
+	BroadcastOperationResult(OperationId, Message.Result.Outcome, Message.Result.FailureReason, Revision);
 }
 
 void UDOItemQuickBarComponent::OnRep_QuickBarDefinitions()
@@ -233,4 +288,21 @@ void UDOItemQuickBarComponent::BroadcastOperationFailure(const int32 ClientOpera
 	Message.ClientOperationId = ClientOperationId;
 	Message.FailureReason = FailureReason;
 	UGameplayMessageSubsystem::Get(this).BroadcastMessage(DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationFailed, Message);
+}
+
+void UDOItemQuickBarComponent::BroadcastOperationResult(const int32 ClientOperationId, const EDOItemOperationOutcome Outcome, const EDOInventoryFailureReason FailureReason, const int32 AuthoritativeRevision)
+{
+	if (!GetWorld() || !UGameplayMessageSubsystem::HasInstance(this))
+	{
+		return;
+	}
+
+	FDOItemQuickBarOperationResultMessage Message;
+	Message.QuickBarComponent = this;
+	Message.Result.Domain = EDOItemOperationDomain::QuickBar;
+	Message.Result.Outcome = Outcome;
+	Message.Result.ClientOperationId = ClientOperationId;
+	Message.Result.FailureReason = FailureReason;
+	Message.Result.AuthoritativeRevision = AuthoritativeRevision >= 0 ? AuthoritativeRevision : Revision;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(DragonOathGameplayTags::Message::UI::ItemQuickBar::OperationResult, Message);
 }

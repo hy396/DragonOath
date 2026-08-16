@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "GameFramework/GameplayMessageSubsystem.h"
 
 #include "ItemSystem/Inventory/DOInventoryTypes.h"
+#include "ItemSystem/Core/DOItemOperationTypes.h"
 
 #include "DOItemQuickBarComponent.generated.h"
 
@@ -36,6 +38,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION(Server, Reliable)
 	void Server_RequestAssignDefinition(int32 SlotIndex, FPrimaryAssetId DefinitionId, int32 ClientOperationId);
@@ -46,16 +49,25 @@ protected:
 	UFUNCTION(Client, Reliable)
 	void Client_QuickBarOperationResult(int32 ClientOperationId, bool bSuccess, EDOInventoryFailureReason FailureReason);
 
+	UFUNCTION(Client, Reliable)
+	void Client_QuickBarOperationResultEx(int32 ClientOperationId, EDOItemOperationOutcome Outcome, EDOInventoryFailureReason FailureReason, int32 AuthoritativeRevision);
+
 private:
 	const UDOItemDefinition* ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const;
+	void HandleInventoryOperationResult(FGameplayTag Channel, const struct FDOInventoryOperationResultMessage& Message);
 	void BroadcastChanged();
 	void BroadcastOperationFailure(int32 ClientOperationId, EDOInventoryFailureReason FailureReason);
+	void BroadcastOperationResult(int32 ClientOperationId, EDOItemOperationOutcome Outcome, EDOInventoryFailureReason FailureReason, int32 AuthoritativeRevision = INDEX_NONE);
 
 	UPROPERTY(Replicated)
 	int32 Revision = 0;
 
 	UPROPERTY(ReplicatedUsing = OnRep_QuickBarDefinitions)
 	TArray<FPrimaryAssetId> QuickBarDefinitions;
+
+	/** 复杂消耗品由 Inventory 完成，QuickBar 仅转发同一 OperationId 的终态回执。 */
+	TSet<int32> DelegatedUseOperationIds;
+	FGameplayMessageListenerHandle InventoryOperationResultHandle;
 
 	UFUNCTION()
 	void OnRep_QuickBarDefinitions();

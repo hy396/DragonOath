@@ -56,17 +56,23 @@ private:
 	void HandleInventoryChanged(FGameplayTag Channel, const struct FDOInventoryChangedMessage& Message);
 	void HandleQuickBarChanged(FGameplayTag Channel, const struct FDOItemQuickBarChangedMessage& Message);
 	void HandleOperationFailed(FGameplayTag Channel, const struct FDOItemQuickBarOperationFailedMessage& Message);
+	void HandleOperationResult(FGameplayTag Channel, const struct FDOItemQuickBarOperationResultMessage& Message);
 	const class UDOItemDefinition* ResolveItemDefinition(const FPrimaryAssetId& DefinitionId) const;
 	void BroadcastChanged();
+	void ProcessPendingTimeouts();
 
 	TWeakObjectPtr<ADOPlayerState> PlayerState;
 	TWeakObjectPtr<UDOInventoryComponent> InventoryComponent;
 	TWeakObjectPtr<UDOItemQuickBarComponent> QuickBarComponent;
 	TArray<TSharedPtr<FDOQuickBarSlotViewModel>> Slots;
+	TMap<int32, TSharedPtr<FDOQuickBarSlotViewModel>> SlotViewModelCache;
 	int32 NextClientOperationId = 1;
 	TMap<int32, int32> PendingOperations;
+	TMap<int32, double> PendingOperationTimes;
+	FTimerHandle PendingTimeoutTimerHandle;
 	FDOItemQuickBarViewModelChanged ChangedDelegate;
 	FGameplayMessageListenerHandle InventoryChangedHandle;
 	FGameplayMessageListenerHandle QuickBarChangedHandle;
 	FGameplayMessageListenerHandle OperationFailedHandle;
+	FGameplayMessageListenerHandle OperationResultHandle;
 };
