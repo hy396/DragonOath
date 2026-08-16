@@ -3,21 +3,31 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AbilitySystem/Core/DOGameplayTag.h"
+#include "AbilitySystem/Abilities/Core/DOAbilitySet.h"
 #include "AbilitySystem/Attributes/DOCombatSet.h"
 #include "AbilitySystem/Core/DOAbilitySystemComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "ItemSystem/Equipment/DOEquipmentComponent.h"
+#include "ItemSystem/Equipment/DOEquipmentInstance.h"
+#include "ItemSystem/AbilitySystem/DOItemGameplayEffects.h"
+#include "ItemSystem/AbilitySystem/DOItemEffectSpecBuilder.h"
+#include "ItemSystem/Core/DOItemDefinition.h"
 #include "GameFramework/PlayerState.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/DataValidation.h"
 #include "ItemSystem/QuickBar/DOItemQuickBarComponent.h"
 #include "ItemSystem/Usage/DOItemUseEffects.h"
+#include "ItemSystem/Inventory/DOInventoryMutation.h"
+#include "ItemSystem/Inventory/DOInventorySortConfig.h"
+#include "Kismet/GameplayStatics.h"
 #include "Player/DOPlayerState.h"
 #include "SaveGame/DOSaveGame.h"
 #include "AssetRegistry/AssetBundleData.h"
 #include "UI/Inventory/DOCombatRatingConfig.h"
+#include "ItemSystem/Tests/DOTestGameplayAbility.h"
+#include "GameplayEffect/GE_SharedCooling.h"
 
 namespace
 {
@@ -113,7 +123,7 @@ namespace
 
 		UDOItemFragment_Equipment* EquipmentFragment = NewObject<UDOItemFragment_Equipment>(Definition);
 		EquipmentFragment->EquipmentSlotTag = EquipmentSlotTag;
-		EquipmentFragment->BaseAttributeMagnitudes.Add(DragonOathGameplayTags::Data::Equipment::AttackPower, FScalableFloat(10.0f));
+		EquipmentFragment->AttributeModifiers.AttackPower = 10.0f;
 		Definition->Fragments.Add(EquipmentFragment);
 		return Definition;
 	}
@@ -170,6 +180,70 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOItemSaveArchiveRoundTripTest,
+	"DragonOath.Inventory.SaveGameArchiveRoundTrip",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOItemSaveArchiveRoundTripTest::RunTest(const FString& /*Parameters*/)
+{
+	UDOSaveGame* SourceSave = NewObject<UDOSaveGame>();
+	SourceSave->InventoryCapacity = 72;
+
+	FDOItemInstanceRecord SourceItem;
+	SourceItem.InstanceId = FGuid::NewGuid();
+	SourceItem.DefinitionId = FPrimaryAssetId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), TEXT("DO_Test_SaveArchive"));
+	SourceItem.StackCount = 9;
+	SourceItem.SlotIndex = 17;
+	SourceItem.UpgradeLevel = 4;
+	SourceItem.CurrentDurability = 63;
+	FDOItemAffixRoll& SourceAffix = SourceItem.Affixes.AddDefaulted_GetRef();
+	SourceAffix.AffixTag = DragonOathGameplayTags::Data::Equipment::AttackPower;
+	SourceAffix.Magnitude = 12.5f;
+	SourceSave->InventoryItems.Add(SourceItem);
+
+	TArray<uint8> SaveBytes;
+	if (!TestTrue(TEXT("SaveGame 可以序列化到内存"), UGameplayStatics::SaveGameToMemory(SourceSave, SaveBytes)))
+	{
+		return false;
+	}
+
+	UDOSaveGame* LoadedSave = Cast<UDOSaveGame>(UGameplayStatics::LoadGameFromMemory(SaveBytes));
+	if (!TestNotNull(TEXT("SaveGame 可以从内存反序列化"), LoadedSave)
+		|| !TestEqual(TEXT("反序列化后保留物品数量"), LoadedSave->InventoryItems.Num(), 1))
+	{
+		return false;
+	}
+
+	const FDOItemInstanceRecord& LoadedItem = LoadedSave->InventoryItems[0];
+	TestEqual(TEXT("保留 InstanceId"), LoadedItem.InstanceId, SourceItem.InstanceId);
+	TestEqual(TEXT("保留 DefinitionId"), LoadedItem.DefinitionId, SourceItem.DefinitionId);
+	TestEqual(TEXT("保留 StackCount"), LoadedItem.StackCount, SourceItem.StackCount);
+	TestEqual(TEXT("保留 SlotIndex"), LoadedItem.SlotIndex, SourceItem.SlotIndex);
+	TestEqual(TEXT("保留 UpgradeLevel"), LoadedItem.UpgradeLevel, SourceItem.UpgradeLevel);
+	TestEqual(TEXT("保留 CurrentDurability"), LoadedItem.CurrentDurability, SourceItem.CurrentDurability);
+	if (TestEqual(TEXT("保留词缀数量"), LoadedItem.Affixes.Num(), 1))
+	{
+		TestEqual(TEXT("保留 AffixTag"), LoadedItem.Affixes[0].AffixTag, SourceAffix.AffixTag);
+		TestEqual(TEXT("保留词缀 Magnitude"), LoadedItem.Affixes[0].Magnitude, SourceAffix.Magnitude);
+	}
+
+	const FString SlotName = FString::Printf(TEXT("DO_Automation_ItemArchive_%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
+	TestTrue(TEXT("SaveGame 可以写入隔离测试槽位"), UGameplayStatics::SaveGameToSlot(SourceSave, SlotName, 0));
+	UDOSaveGame* SlotLoadedSave = Cast<UDOSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+	if (TestNotNull(TEXT("SaveGame 可以从隔离测试槽位读取"), SlotLoadedSave) && SlotLoadedSave->InventoryItems.Num() == 1)
+	{
+		TestEqual(TEXT("真实槽位往返保留 InstanceId"), SlotLoadedSave->InventoryItems[0].InstanceId, SourceItem.InstanceId);
+		TestEqual(TEXT("真实槽位往返保留词缀"), SlotLoadedSave->InventoryItems[0].Affixes.Num(), 1);
+	}
+	if (UGameplayStatics::DoesSaveGameExist(SlotName, 0))
+	{
+		TestTrue(TEXT("隔离测试槽位已清理"), UGameplayStatics::DeleteGameInSlot(SlotName, 0));
+	}
+
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FDOInventoryStackAndCapacityTest,
 	"DragonOath.Inventory.StackAndCapacity",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
@@ -197,6 +271,63 @@ bool FDOInventoryStackAndCapacityTest::RunTest(const FString& /*Parameters*/)
 	TestEqual(TEXT("第二个堆栈已填满"), Items[1].StackCount, 5);
 
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOInventoryMutationInvariantTest,
+	"DragonOath.Inventory.MutationInvariant",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOInventoryMutationInvariantTest::RunTest(const FString& /*Parameters*/)
+{
+	const FPrimaryAssetId DefinitionId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), TEXT("DO_Test_Mutation"));
+	const FDOItemInstanceRecord FirstItem = MakeTestItem(DefinitionId, 0, 1);
+	const FDOItemInstanceRecord SecondItem = MakeTestItem(DefinitionId, 2, 1);
+
+	FDOInventoryMutationChangeSet ChangeSet;
+	TestTrue(TEXT("合法快照通过纯算法槽位唯一性校验"), FDOInventoryMutation::ValidateUniqueSlots({ FirstItem, SecondItem }, 4, &ChangeSet));
+	TestEqual(TEXT("变更集包含每个实例一次"), ChangeSet.ChangedInstanceIds.Num(), 2);
+
+	FDOItemInstanceRecord DuplicateSlot = SecondItem;
+	DuplicateSlot.SlotIndex = FirstItem.SlotIndex;
+	TestFalse(TEXT("重复槽位被纯算法拒绝"), FDOInventoryMutation::ValidateUniqueSlots({ FirstItem, DuplicateSlot }, 4));
+	TestFalse(TEXT("超容量快照被纯算法拒绝"), FDOInventoryMutation::ValidateUniqueSlots({ FirstItem, SecondItem }, 1));
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOInventoryRevisionAndNoOpTest,
+	"DragonOath.Inventory.RevisionAndNoOp",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOInventoryRevisionAndNoOpTest::RunTest(const FString& /*Parameters*/)
+{
+	UDOItemDefinition* Definition = CreateTestDefinition(TEXT("DO_Test_Revision"), 10);
+	APlayerState* Owner = nullptr;
+	UDOInventoryComponent* Inventory = CreateTestInventory(Owner, 4);
+	const FPrimaryAssetId DefinitionId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), Definition->GetFName());
+
+	const int32 RevisionBeforeAdd = Inventory->GetRevision();
+	TestEqual(TEXT("一次添加事务只递增一次 Revision"), Inventory->TryAddItem(DefinitionId, 1).AddedCount, 1);
+	TestEqual(TEXT("添加事务 Revision 增量为一"), Inventory->GetRevision(), RevisionBeforeAdd + 1);
+
+	TArray<FDOItemInstanceRecord> Items;
+	Inventory->GetInventorySnapshot(Items);
+	if (!TestEqual(TEXT("Revision 测试拥有一个实例"), Items.Num(), 1))
+	{
+		return false;
+	}
+
+	const int32 RevisionBeforeNoOp = Inventory->GetRevision();
+	Inventory->RequestMoveItem(Items[0].InstanceId, Items[0].SlotIndex, Items[0].SlotIndex, 0, 7001);
+	TestEqual(TEXT("移动到原槽位是 NoOp 且不递增 Revision"), Inventory->GetRevision(), RevisionBeforeNoOp);
+
+	const int32 RevisionBeforeRemove = Inventory->GetRevision();
+	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
+	TestTrue(TEXT("删除最后一个实例成功"), Inventory->TryConsumeItem(Items[0].InstanceId, 1, FailureReason));
+	TestEqual(TEXT("删除事务 Revision 只递增一次"), Inventory->GetRevision(), RevisionBeforeRemove + 1);
+	TestEqual(TEXT("删除最后一个实例后库存为空"), Inventory->GetUsedSlotCount(), 0);
+	return !HasAnyErrors();
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -327,6 +458,79 @@ bool FDOInventoryMoveSplitSortDiscardTest::RunTest(const FString& /*Parameters*/
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOInventorySortConfigTest,
+	"DragonOath.Inventory.SortConfig",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOInventorySortConfigTest::RunTest(const FString& /*Parameters*/)
+{
+	UDOItemDefinition* EquipmentDefinition = CreateTestEquipmentDefinition(
+		TEXT("DO_Test_Sort_Equipment"),
+		DragonOathGameplayTags::Equipment::Slot::Weapon);
+	EquipmentDefinition->SortPriority = 1;
+	EquipmentDefinition->ItemType = DragonOathGameplayTags::Item::Type::Equipment;
+
+	UDOItemDefinition* ConsumableDefinition = CreateTestConsumableDefinition(TEXT("DO_Test_Sort_Consumable"));
+	ConsumableDefinition->SortPriority = 100;
+
+	APlayerState* Owner = nullptr;
+	UDOInventoryComponent* Inventory = CreateTestInventory(Owner, 4);
+	const FPrimaryAssetType TestType(TEXT("DOTestItemDefinition"));
+	const FPrimaryAssetId EquipmentId(TestType, EquipmentDefinition->GetFName());
+	const FPrimaryAssetId ConsumableId(TestType, ConsumableDefinition->GetFName());
+
+	TestEqual(TEXT("先加入消耗品"), Inventory->TryAddItem(ConsumableId, 1).AddedCount, 1);
+	TestEqual(TEXT("再加入装备"), Inventory->TryAddItem(EquipmentId, 1).AddedCount, 1);
+
+	UDOInventorySortConfig* SortConfig = NewObject<UDOInventorySortConfig>(GetTransientPackage());
+	SortConfig->ItemTypeWeights.Add(DragonOathGameplayTags::Item::Type::Consumable, 0);
+	SortConfig->ItemTypeWeights.Add(DragonOathGameplayTags::Item::Type::Equipment, 10);
+	Inventory->SetSortConfig(SortConfig);
+
+	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
+	TestTrue(TEXT("使用 SortConfig 排序成功"), Inventory->TrySortInventory(FailureReason));
+
+	TArray<FDOItemInstanceRecord> Items;
+	Inventory->GetInventorySnapshot(Items);
+	if (TestEqual(TEXT("排序后仍保留两个实例"), Items.Num(), 2))
+	{
+		TestEqual(TEXT("SortConfig 权重优先于 Definition SortPriority"), Items[0].DefinitionId, ConsumableId);
+		TestEqual(TEXT("排序后的第二项为装备"), Items[1].DefinitionId, EquipmentId);
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOInventoryMutationRevisionBatchTest,
+	"DragonOath.Inventory.MutationRevisionBatch",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOInventoryMutationRevisionBatchTest::RunTest(const FString& /*Parameters*/)
+{
+	UDOItemDefinition* Definition = CreateTestDefinition(TEXT("DO_Test_Mutation_Batch"), 1);
+	APlayerState* Owner = nullptr;
+	UDOInventoryComponent* Inventory = CreateTestInventory(Owner, 4);
+	const FPrimaryAssetId DefinitionId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), Definition->GetFName());
+	TestEqual(TEXT("批量事务准备两个实例"), Inventory->TryAddItem(DefinitionId, 2).AddedCount, 2);
+
+	TArray<FDOItemInstanceRecord> Items;
+	Inventory->GetInventorySnapshot(Items);
+	if (!TestEqual(TEXT("批量事务拥有两个实例"), Items.Num(), 2))
+	{
+		return false;
+	}
+
+	const int32 RevisionBeforeBatch = Inventory->GetRevision();
+	Inventory->BeginMutation();
+	Inventory->RequestMoveItem(Items[0].InstanceId, Items[0].SlotIndex, 2, 0, 9101);
+	Inventory->RequestMoveItem(Items[1].InstanceId, Items[1].SlotIndex, 3, 0, 9102);
+	TestEqual(TEXT("事务未结束前 Revision 不变"), Inventory->GetRevision(), RevisionBeforeBatch);
+	Inventory->EndMutation();
+	TestEqual(TEXT("批量事务结束时 Revision 只增加一次"), Inventory->GetRevision(), RevisionBeforeBatch + 1);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FDOInventoryUseQuickBarAndSaveTest,
 	"DragonOath.Inventory.UseQuickBarAndSave",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
@@ -393,6 +597,17 @@ bool FDOInventoryUseQuickBarAndSaveTest::RunTest(const FString& /*Parameters*/)
 	Inventory->GetInventorySnapshot(Items);
 	TestEqual(TEXT("恢复后背包物品数量一致"), Items.Num(), 1);
 	TestEqual(TEXT("恢复后快捷栏绑定一致"), QuickBar->GetDefinitionForSlot(0), ConsumableDefinitionId);
+
+	FailureReason = EDOInventoryFailureReason::None;
+	TestTrue(TEXT("用尽快捷栏绑定物品"), Inventory->TryUseItemByDefinition(ConsumableDefinitionId, FailureReason));
+	Inventory->GetInventorySnapshot(Items);
+	TestEqual(TEXT("物品用尽后库存为空"), Items.Num(), 0);
+	UDOSaveGame* ZeroStockSaveGame = UDOSaveGame::CaptureFromPlayerState(PlayerState);
+	TArray<uint8> ZeroStockSaveBytes;
+	TestTrue(TEXT("零库存快捷栏状态可以序列化"), ZeroStockSaveGame && UGameplayStatics::SaveGameToMemory(ZeroStockSaveGame, ZeroStockSaveBytes));
+	UDOSaveGame* LoadedZeroStockSaveGame = Cast<UDOSaveGame>(UGameplayStatics::LoadGameFromMemory(ZeroStockSaveBytes));
+	TestTrue(TEXT("零库存快捷栏绑定不会阻断存档恢复"), LoadedZeroStockSaveGame && LoadedZeroStockSaveGame->RestoreToPlayerState(PlayerState));
+	TestEqual(TEXT("零库存恢复后保留快捷栏 DefinitionId"), QuickBar->GetDefinitionForSlot(0), ConsumableDefinitionId);
 
 	return !HasAnyErrors();
 }
@@ -543,6 +758,164 @@ bool FDOEquipmentSaveAndRestoreTest::RunTest(const FString& /*Parameters*/)
 	Inventory->GetInventorySnapshot(Items);
 	TestEqual(TEXT("恢复后装备不会重复出现在背包"), Items.Num(), 0);
 
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOEquipmentSourceGrantLifecycleTest,
+	"DragonOath.Equipment.SourceGrantLifecycle",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOEquipmentSourceGrantLifecycleTest::RunTest(const FString& /*Parameters*/)
+{
+	FDOAutomationWorld TestWorld;
+	ADOPlayerState* PlayerState = TestWorld.SpawnPlayerState();
+	if (!TestNotNull(TEXT("创建来源授予测试 PlayerState"), PlayerState))
+	{
+		return false;
+	}
+	InitializeTestAbilitySystem(PlayerState);
+
+	UDOAbilitySystemComponent* ASC = PlayerState->GetDOAbilitySystemComponent();
+	UDOEquipmentComponent* Equipment = PlayerState->GetEquipmentComponent();
+	if (!TestNotNull(TEXT("来源授予测试 ASC 有效"), ASC) || !TestNotNull(TEXT("来源授予测试装备组件有效"), Equipment))
+	{
+		return false;
+	}
+
+	UDOEquipmentInstance* Instance = NewObject<UDOEquipmentInstance>(Equipment);
+	FDOItemInstanceRecord Item;
+	Item.InstanceId = FGuid::NewGuid();
+	Item.DefinitionId = FPrimaryAssetId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), TEXT("DO_Test_SourceGrant"));
+	Instance->Initialize(Item, DragonOathGameplayTags::Equipment::Slot::Weapon);
+
+	UDOAbilitySet* AbilitySet = NewObject<UDOAbilitySet>(GetTransientPackage());
+	FDOAbilityGrant AbilityGrant;
+	AbilityGrant.AbilityId = DragonOathGameplayTags::Ability::Id::PrimaryAttack;
+	AbilityGrant.AbilityClass = UDOTestGameplayAbility::StaticClass();
+	AbilityGrant.InitialLevel = 1;
+	AbilitySet->GrantedAbilities.Add(AbilityGrant);
+
+	FDOGameplayEffectGrant EffectGrant;
+	EffectGrant.GameplayEffectClass = UGE_SharedCooling::StaticClass();
+	AbilitySet->GrantedGameplayEffects.Add(EffectGrant);
+
+	FDOAbilitySetGrantedHandles Handles;
+	TestTrue(TEXT("来源 AbilitySet 授予成功"), ASC->GiveDOAbilitySetForSource(AbilitySet, Instance, Handles));
+	TestEqual(TEXT("来源句柄记录一个 Ability"), Handles.AbilitySpecHandles.Num(), 1);
+	TestEqual(TEXT("来源句柄记录一个 GameplayEffect"), Handles.GameplayEffectHandles.Num(), 1);
+	if (Handles.AbilitySpecHandles.Num() == 1)
+	{
+		const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromHandle(Handles.AbilitySpecHandles[0]);
+		TestNotNull(TEXT("来源 AbilitySpec 存在"), Spec);
+		if (Spec)
+		{
+			TestTrue(TEXT("AbilitySpec SourceObject 指向 EquipmentInstance"), Spec->SourceObject.Get() == Instance);
+		}
+	}
+
+	ASC->RemoveDOAbilitySet(Handles);
+	if (Handles.AbilitySpecHandles.Num() == 1)
+	{
+		TestNull(TEXT("卸下来源后 AbilitySpec 已移除"), ASC->FindAbilitySpecFromHandle(Handles.AbilitySpecHandles[0]));
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOEquipmentAffixSpecTest,
+	"DragonOath.Equipment.AffixSpec",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOEquipmentAffixSpecTest::RunTest(const FString& /*Parameters*/)
+{
+	FDOAutomationWorld TestWorld;
+	ADOPlayerState* PlayerState = TestWorld.SpawnPlayerState();
+	if (!TestNotNull(TEXT("创建词缀 Spec 测试 PlayerState"), PlayerState))
+	{
+		return false;
+	}
+	InitializeTestAbilitySystem(PlayerState);
+	UDOAbilitySystemComponent* ASC = PlayerState->GetDOAbilitySystemComponent();
+	UDOEquipmentComponent* Equipment = PlayerState->GetEquipmentComponent();
+	if (!TestNotNull(TEXT("词缀 Spec 测试 ASC 有效"), ASC)
+		|| !TestNotNull(TEXT("词缀 Spec 测试 Equipment 有效"), Equipment))
+	{
+		return false;
+	}
+
+	FDOAttributeModifierValues BaseValues;
+	BaseValues.AttackPower = 10.0f;
+	FDOItemAffixRoll Affix;
+	Affix.AffixTag = DragonOathGameplayTags::Data::Equipment::AttackPower;
+	Affix.Magnitude = 7.5f;
+	TArray<FDOItemAffixRoll> Affixes{ Affix };
+	FGameplayEffectSpecHandle SpecHandle;
+	UDOEquipmentInstance* SourceObject = NewObject<UDOEquipmentInstance>(Equipment);
+	SourceObject->Initialize(FDOItemInstanceRecord(), DragonOathGameplayTags::Equipment::Slot::Chest);
+	TestTrue(TEXT("装备 Spec 构建成功"), FDOItemEffectSpecBuilder::BuildEquipmentSpec(*ASC, *SourceObject, BaseValues, Affixes, 1.0f, SpecHandle));
+	if (SpecHandle.IsValid() && SpecHandle.Data.IsValid())
+	{
+		TestEqual(TEXT("装备基础属性与实例词缀合并"), SpecHandle.Data->GetSetByCallerMagnitude(DragonOathGameplayTags::Data::Equipment::AttackPower), 17.5f);
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FDOEquipmentDurabilityRuntimeStateTest,
+	"DragonOath.Equipment.DurabilityRuntimeState",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FDOEquipmentDurabilityRuntimeStateTest::RunTest(const FString& /*Parameters*/)
+{
+	UDOItemDefinition* Definition = CreateTestEquipmentDefinition(
+		TEXT("DO_Test_Durability_Equipment"),
+		DragonOathGameplayTags::Equipment::Slot::Chest);
+	UDOItemFragment_Equipment* Fragment = nullptr;
+	for (UObject* FragmentObject : Definition->Fragments)
+	{
+		if (UDOItemFragment_Equipment* EquipmentFragment = Cast<UDOItemFragment_Equipment>(FragmentObject))
+		{
+			Fragment = EquipmentFragment;
+			break;
+		}
+	}
+	if (Fragment)
+	{
+		Fragment->MaxDurability = 100;
+	}
+
+	FDOAutomationWorld TestWorld;
+	ADOPlayerState* PlayerState = TestWorld.SpawnPlayerState();
+	if (!TestNotNull(TEXT("创建耐久测试 PlayerState"), PlayerState))
+	{
+		return false;
+	}
+	InitializeTestAbilitySystem(PlayerState);
+	UDOEquipmentComponent* Equipment = PlayerState->GetEquipmentComponent();
+	if (!TestNotNull(TEXT("耐久测试 Equipment 有效"), Equipment))
+	{
+		return false;
+	}
+
+	FDOEquippedItemEntry Entry;
+	Entry.SlotTag = DragonOathGameplayTags::Equipment::Slot::Chest;
+	Entry.Item = MakeTestItem(FPrimaryAssetId(FPrimaryAssetType(TEXT("DOTestItemDefinition")), Definition->GetFName()), INDEX_NONE, 1);
+	Entry.Item.CurrentDurability = 0;
+	TestTrue(TEXT("耐久为零的装备仍可恢复到槽位"), Equipment->RestoreEquippedSnapshot({ Entry }));
+	const UDOEquipmentInstance* Instance = Equipment->FindEquipmentInstance(Entry.SlotTag);
+	TestNotNull(TEXT("耐久为零的装备实例存在"), Instance);
+	if (Instance)
+	{
+		TestFalse(TEXT("耐久为零时不施加属性 GE"), Instance->GetAttributeEffectHandle().IsValid());
+	}
+
+	TestTrue(TEXT("修复耐久后重建装备运行时状态"), Equipment->SetEquippedDurability(Entry.SlotTag, 50));
+	Instance = Equipment->FindEquipmentInstance(Entry.SlotTag);
+	if (Instance)
+	{
+		TestTrue(TEXT("修复后属性 GE 生效"), Instance->GetAttributeEffectHandle().IsValid());
+	}
 	return !HasAnyErrors();
 }
 
