@@ -13,6 +13,8 @@ class DRAGONOATH_API UDOGameplayAbility_UseItem : public UDOGameplayAbility
 public:
 	UDOGameplayAbility_UseItem(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
+
 protected:
 	/**
 	 * 在复杂流程的最终提交点调用。

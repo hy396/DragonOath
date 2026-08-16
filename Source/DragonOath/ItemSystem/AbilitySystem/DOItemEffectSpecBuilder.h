@@ -4,6 +4,7 @@
 #include "GameplayEffectTypes.h"
 
 #include "ItemSystem/Core/DOItemAttributeTypes.h"
+#include "ItemSystem/Core/DOItemInstanceTypes.h"
 
 class UDOAbilitySystemComponent;
 class UGameplayEffect;
@@ -23,8 +24,20 @@ struct DRAGONOATH_API FDOItemEffectSpecBuilder final
 		UDOAbilitySystemComponent& ASC,
 		UObject& SourceObject,
 		const FDOAttributeModifierValues& Values,
+		const TArray<FDOItemAffixRoll>& Affixes,
 		float UpgradeScale,
 		FGameplayEffectSpecHandle& OutSpec);
+
+	/** 兼容没有动态词缀的旧调用方。 */
+	static bool BuildEquipmentSpec(
+		UDOAbilitySystemComponent& ASC,
+		UObject& SourceObject,
+		const FDOAttributeModifierValues& Values,
+		float UpgradeScale,
+		FGameplayEffectSpecHandle& OutSpec)
+	{
+		return BuildEquipmentSpec(ASC, SourceObject, Values, TArray<FDOItemAffixRoll>(), UpgradeScale, OutSpec);
+	}
 
 	/** 构建即时回复 Spec。 */
 	static bool BuildInstantRestoreSpec(

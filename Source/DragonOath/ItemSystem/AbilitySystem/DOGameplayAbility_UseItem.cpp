@@ -40,5 +40,23 @@ bool UDOGameplayAbility_UseItem::CommitItemUse()
 	}
 
 	EDOInventoryFailureReason FailureReason = EDOInventoryFailureReason::None;
-	return Inventory->CommitConsumableUse(Context->InstanceId, Context->DefinitionId, FailureReason);
+	return Inventory->CommitConsumableUse(Context->InstanceId, Context->DefinitionId, FailureReason, Context->ClientOperationId);
+}
+
+void UDOGameplayAbility_UseItem::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const bool bReplicateEndAbility, const bool bWasCancelled)
+{
+	if (bWasCancelled)
+	{
+		const UDOItemUseContext* Context = GetItemUseContext();
+		const ADOPlayerState* PlayerState = Cast<ADOPlayerState>(GetOwningActorFromActorInfo());
+		if (Context && Context->ClientOperationId > 0 && PlayerState)
+		{
+			if (UDOInventoryComponent* Inventory = PlayerState->GetInventoryComponent())
+			{
+				Inventory->CancelConsumableUse(Context->ClientOperationId);
+			}
+		}
+	}
+
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

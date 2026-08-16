@@ -11,6 +11,25 @@ namespace
 	{
 		Spec.SetSetByCallerMagnitude(DataTag, FMath::IsFinite(Value) ? Value : 0.0f);
 	}
+
+	void AddAffixMagnitude(FDOAttributeModifierValues& Values, const FDOItemAffixRoll& Affix)
+	{
+		if (!Affix.AffixTag.IsValid() || !FMath::IsFinite(Affix.Magnitude))
+		{
+			return;
+		}
+
+		if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::AttackPower) Values.AttackPower += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::DefensePower) Values.DefensePower += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::MaxHealth) Values.MaxHealth += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::MaxMana) Values.MaxMana += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::CriticalRating) Values.CriticalRating += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::HitRating) Values.HitRating += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::EvasionRating) Values.EvasionRating += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::AttackSpeed) Values.AttackSpeed += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::MoveSpeed) Values.MoveSpeed += Affix.Magnitude;
+		else if (Affix.AffixTag == DragonOathGameplayTags::Data::Equipment::LifeStealRate) Values.LifeStealRate += Affix.Magnitude;
+	}
 }
 
 bool FDOItemEffectSpecBuilder::InitializeSpec(
@@ -60,6 +79,7 @@ bool FDOItemEffectSpecBuilder::BuildEquipmentSpec(
 	UDOAbilitySystemComponent& ASC,
 	UObject& SourceObject,
 	const FDOAttributeModifierValues& Values,
+	const TArray<FDOItemAffixRoll>& Affixes,
 	const float UpgradeScale,
 	FGameplayEffectSpecHandle& OutSpec)
 {
@@ -69,7 +89,12 @@ bool FDOItemEffectSpecBuilder::BuildEquipmentSpec(
 		return false;
 	}
 
-	WriteAttributeMagnitudes(*OutSpec.Data.Get(), Values, UpgradeScale);
+	FDOAttributeModifierValues CombinedValues = Values;
+	for (const FDOItemAffixRoll& Affix : Affixes)
+	{
+		AddAffixMagnitude(CombinedValues, Affix);
+	}
+	WriteAttributeMagnitudes(*OutSpec.Data.Get(), CombinedValues, UpgradeScale);
 	return true;
 }
 
