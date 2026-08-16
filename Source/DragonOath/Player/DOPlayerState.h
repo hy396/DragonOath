@@ -127,27 +127,27 @@ private:
 	TObjectPtr<UDOItemQuickBarComponent> ItemQuickBarComponent;
 
 	// 当前职业标识，复制到客户端
-	UPROPERTY(ReplicatedUsing = OnRep_ProfessionTag, EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(ReplicatedUsing = OnRep_ProfessionTag, EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", DisplayName = "职业标签"))
 	FGameplayTag ProfessionTag;
 
 	// 职业技能总配置（DA_ProfessionAbilityConfig 资产）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", DisplayName = "职业技能配置"))
 	TObjectPtr<UDOProfessionAbilityConfig> ProfessionAbilityConfig;
 
 	// 兜底职业来源。原型期默认值；后续接存档/Loadout/选人流程时可替换来源。
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", Categories = "Profession"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Profession", Meta = (AllowPrivateAccess = "true", Categories = "Profession", DisplayName = "兜底职业标签"))
 	FGameplayTag DefaultProfessionTag;
 
 	/** SaveGame 槽位名前缀；最终槽位名会附加 PlayerId，避免联机玩家互相覆盖。 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true", DisplayName = "存档槽位名前缀"))
 	FString InventorySaveSlotPrefix = TEXT("DragonOath_Player");
 
 	/** 第一版本地/Listen Server 是否在 PlayerState 生命周期中自动读档。 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true", DisplayName = "自动读取背包存档"))
 	bool bAutoLoadInventory = true;
 
 	/** 第一版本地/Listen Server 是否在 PlayerState 销毁前自动保存。 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Save", Meta = (AllowPrivateAccess = "true", DisplayName = "自动保存背包存档"))
 	bool bAutoSaveInventory = true;
 
 	// 服务端标记，防止重复授予

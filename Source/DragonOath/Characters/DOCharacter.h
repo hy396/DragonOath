@@ -81,6 +81,6 @@ private:
 	TObjectPtr<UDOHealthComponent> HealthComponent;
 
 	// 角色等级。玩家默认 1，怪物由数据表配置。
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Character", Meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Character", Meta = (AllowPrivateAccess = "true", DisplayName = "角色等级"))
 	int32 CharacterLevel = 1;
 };

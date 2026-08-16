@@ -9,6 +9,7 @@
 #include "ItemSystem/QuickBar/DOItemQuickBarViewModel.h"
 #include "CommonUIExtensions.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
 #include "UI/Inventory/DOItemQuickBarSlateWidgets.h"
 #include "PrimaryGameLayout.h"
 #include "Player/DOPlayerState.h"
@@ -25,14 +26,23 @@ ADOPlayerController::ADOPlayerController(const FObjectInitializer& ObjectInitial
 void ADOPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 本项目鼠标始终显示，不随输入模式/沉浸模式隐藏。
+	if (IsLocalController())
+	{
+		bShowMouseCursor = true;
+		DefaultMouseCursor = EMouseCursor::Default;
+		CurrentMouseCursor = EMouseCursor::Default;
+	}
+
 	EnsureQuickBarHud();
 }
 
 void ADOPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (QuickBarViewportWidget.IsValid() && GetWorld() && GetWorld()->GetGameViewport())
+	if (QuickBarViewportWidget.IsValid() && GetLocalPlayer() && GetWorld() && GetWorld()->GetGameViewport())
 	{
-		GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(QuickBarViewportWidget.ToSharedRef());
+		GetWorld()->GetGameViewport()->RemoveViewportWidgetForPlayer(GetLocalPlayer(), QuickBarViewportWidget.ToSharedRef());
 	}
 	QuickBarViewportWidget.Reset();
 	QuickBarWidget.Reset();
@@ -47,6 +57,15 @@ void ADOPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ADOPlayerController::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
+
+	// 客户端玩家状态就绪后再确保一次鼠标常驻（覆盖 CommonUI 输入模式切换的默认隐藏）。
+	if (IsLocalController())
+	{
+		bShowMouseCursor = true;
+		DefaultMouseCursor = EMouseCursor::Default;
+		CurrentMouseCursor = EMouseCursor::Default;
+	}
+
 	EnsureQuickBarHud();
 }
 
@@ -204,7 +223,9 @@ void ADOPlayerController::EnsureQuickBarHud()
 		QuickBarWidget.ToSharedRef()
 	];
 
-	GetWorld()->GetGameViewport()->AddViewportWidgetContent(QuickBarViewportWidget.ToSharedRef(), 20);
+	// ZOrder 设较低值，确保 CommonUI 页面（背包/设置等 Menu/Modal 层）显示在快捷栏之上，
+	// 避免快捷栏遮挡设置面板。
+	GetWorld()->GetGameViewport()->AddViewportWidgetForPlayer(GetLocalPlayer(), QuickBarViewportWidget.ToSharedRef(), -1);
 }
 
 UDOAbilitySystemComponent* ADOPlayerController::GetDOAbilitySystemComponent() const

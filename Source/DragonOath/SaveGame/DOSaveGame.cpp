@@ -1,9 +1,9 @@
 #include "SaveGame/DOSaveGame.h"
 
 #include "ItemSystem/Equipment/DOEquipmentComponent.h"
-#include "Engine/AssetManager.h"
 #include "ItemSystem/Inventory/DOInventoryComponent.h"
 #include "ItemSystem/Core/DOItemDefinition.h"
+#include "ItemSystem/Core/DOItemDefinitionSubsystem.h"
 #include "ItemSystem/QuickBar/DOItemQuickBarComponent.h"
 #include "Player/DOPlayerState.h"
 
@@ -87,12 +87,9 @@ bool UDOSaveGame::RestoreToPlayerState(ADOPlayerState* PlayerState)
 
 	// 唯一物品规则必须跨普通背包和装备栏一起校验，不能通过读档同时恢复两份。
 	TSet<FPrimaryAssetId> UniqueDefinitionIds;
-	auto CheckUniqueDefinition = [&UniqueDefinitionIds](const FDOItemInstanceRecord& Item) -> bool
+	auto CheckUniqueDefinition = [PlayerState, &UniqueDefinitionIds](const FDOItemInstanceRecord& Item) -> bool
 	{
-		const FSoftObjectPath DefinitionPath = UAssetManager::Get().GetPrimaryAssetPath(Item.DefinitionId);
-		const UDOItemDefinition* Definition = DefinitionPath.IsValid()
-			? Cast<UDOItemDefinition>(DefinitionPath.TryLoad())
-			: nullptr;
+		const UDOItemDefinition* Definition = UDOItemDefinitionSubsystem::ResolveItemDefinition(PlayerState, Item.DefinitionId);
 		const UDOItemFragment_Inventory* InventoryFragment = Definition
 			? Definition->FindFragment<UDOItemFragment_Inventory>()
 			: nullptr;

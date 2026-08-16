@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GameFramework/PlayerController.h"
-
+#include "SetlyPlayerController.h"
 #include "DOPlayerController.generated.h"
 
 class UDOAbilitySystemComponent;
@@ -18,7 +18,7 @@ class SOverlay;
  * 这样 Pressed、Held、Released 会按统一顺序进入技能系统，便于做预测和输入复制。
  */
 UCLASS()
-class DRAGONOATH_API ADOPlayerController : public APlayerController
+class DRAGONOATH_API ADOPlayerController : public ASetlyPlayerController
 {
 	GENERATED_BODY()
 
@@ -51,7 +51,7 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_RequestPickup(ADOItemPickup* Pickup);
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|UI")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|UI", meta = (DisplayName = "背包界面类"))
 	TSubclassOf<UDOInventoryScreen> InventoryScreenClass;
 
 	UPROPERTY(Transient)
