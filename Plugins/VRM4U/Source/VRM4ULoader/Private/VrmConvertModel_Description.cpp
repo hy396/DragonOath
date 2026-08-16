@@ -690,7 +690,7 @@ bool VRMConverter::ConvertModel_internal_description(UVrmAssetListObject *vrmAss
 				++ccc;
 
 				if (Options::Get().IsForceOverride()) {
-					a->Rename(*(FString(TEXT("need_reload_sk_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					a->Rename(*(FString(TEXT("need_reload_sk_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 				} else {
 					bReimportMode = true;
 					// reimport
@@ -762,7 +762,7 @@ bool VRMConverter::ConvertModel_internal_description(UVrmAssetListObject *vrmAss
 					if (Options::Get().IsForceOverride()) {
 						a->ClearFlags(EObjectFlags::RF_Standalone);
 						a->SetFlags(EObjectFlags::RF_Public | RF_Transient);
-						a->Rename(*(FString(TEXT("need_reload_k_VRM")) + FString::FromInt(0)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+						a->Rename(*(FString(TEXT("need_reload_k_VRM")) + FString::FromInt(0)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 						a->ConditionalBeginDestroy();
 					} else {
 						// reimport
@@ -2397,8 +2397,6 @@ bool VRMConverter::ConvertModel_internal_description(UVrmAssetListObject *vrmAss
 			Controller.SetFrameRate(FCommonFrameRates::FPS_30());
 		}
 		Controller.SetNumberOfFrames(FrameNum - 1);
-
-		Controller.UpdateCurveNamesFromSkeleton(k, ERawCurveTrackTypes::RCT_Float);
 
 		//Controller.OpenBracket(LOCTEXT("VRM4U", "Importing BVH"), false);
 

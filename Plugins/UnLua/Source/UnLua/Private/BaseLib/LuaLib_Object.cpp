@@ -324,7 +324,7 @@ BEGIN_EXPORT_CLASS(FSoftObjectPtr, const UObject*)
     ADD_FUNCTION_EX("GetAssetName", FString, GetAssetName)
     ADD_FUNCTION_EX("GetLongPackageName", FString, GetLongPackageName)
     ADD_CONST_FUNCTION_EX("Get", UObject*, Get)
-    ADD_CONST_FUNCTION_EX("LoadSynchronous", UObject*, LoadSynchronous)
+    ADD_CONST_FUNCTION_EX("LoadSynchronous", UObject*, LoadSynchronous, ELoadFlags)
     ADD_LIB(FSoftObjectPtrLib)
 END_EXPORT_CLASS()
 

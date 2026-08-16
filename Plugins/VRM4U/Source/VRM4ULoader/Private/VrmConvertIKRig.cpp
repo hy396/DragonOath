@@ -34,6 +34,10 @@
 #include "PersonaModule.h"
 #include "Modules/ModuleManager.h"
 #include "Animation/DebugSkelMeshComponent.h"
+#if !UE_VERSION_OLDER_THAN(5,6,0)
+#include "RetargetEditor/IKRetargeterController.h"
+#include "Retargeter/RetargetOps/FKChainsOp.h"
+#endif
 #endif
 
 #include <assimp/Importer.hpp>
@@ -604,6 +608,11 @@ public:
 #else
 #if VRM4U_USE_EDITOR_RIG
 		UIKRetargeterController* c = UIKRetargeterController::GetController(Retargeter);
+		if (c == nullptr) {
+			return;
+		}
+
+#if UE_VERSION_OLDER_THAN(5,6,0)
 		{
 			auto cs = c->GetRetargetChainSettings(TEXT("Root"));
 			cs.FK.TranslationMode = ERetargetTranslationMode::GloballyScaled;
@@ -650,6 +659,46 @@ public:
 			}
 		}
 		*/
+#else
+		FIKRetargetFKChainsOp* FkChainsOp = c->GetFirstRetargetOpOfType<FIKRetargetFKChainsOp>();
+		if (FkChainsOp == nullptr) {
+			return;
+		}
+
+		const int32 FkChainsOpIndex = c->GetIndexOfRetargetOp(FkChainsOp);
+		UIKRetargetFKChainsController* FkChainsController = Cast<UIKRetargetFKChainsController>(c->GetOpController(FkChainsOpIndex));
+		if (FkChainsController == nullptr) {
+			return;
+		}
+
+		FIKRetargetFKChainsOpSettings Settings = FkChainsController->GetSettings();
+		const auto SetChainTranslationMode = [&Settings](const FName ChainName)
+		{
+			if (FRetargetFKChainSettings* ChainSettings = Settings.ChainsToRetarget.FindByPredicate(
+				[ChainName](const FRetargetFKChainSettings& Candidate)
+				{
+					return Candidate.TargetChainName == ChainName;
+				}))
+			{
+				ChainSettings->TranslationMode = EFKChainTranslationMode::GloballyScaled;
+			}
+		};
+
+		SetChainTranslationMode(TEXT("Root"));
+		for (const FName ChainName : {
+			FName(TEXT("FootRootIK")),
+			FName(TEXT("LeftFootIK")),
+			FName(TEXT("RightFootIK")),
+			FName(TEXT("HandRootIK")),
+			FName(TEXT("LeftHandIK")),
+			FName(TEXT("RightHandIK"))
+		})
+		{
+			SetChainTranslationMode(ChainName);
+		}
+
+		FkChainsController->SetSettings(Settings);
+#endif
 
 #else
 		auto r = Retargeter->GetChainMapByName(TEXT("Root"));

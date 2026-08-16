@@ -557,7 +557,7 @@ UTexture2D* VRMLoaderUtil::CreateTexture(int32 InSizeX, int32 InSizeY, FString n
 					//if (q) {
 					//	q->Materials.Empty();
 					//}
-					a->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					a->Rename(NULL, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 
 					break;
 				}

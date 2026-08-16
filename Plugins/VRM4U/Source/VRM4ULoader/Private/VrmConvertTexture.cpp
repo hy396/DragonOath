@@ -537,9 +537,9 @@ namespace {
 
 			if(true)
 			{
-				bool bNeedsRecompile = true;
-				UnrealMaterial->GetMaterial()->SetMaterialUsage(bNeedsRecompile, MATUSAGE_SkeletalMesh);
-				UnrealMaterial->GetMaterial()->SetMaterialUsage(bNeedsRecompile, MATUSAGE_MorphTargets);
+
+				UnrealMaterial->SetMaterialUsage(MATUSAGE_SkeletalMesh);
+				UnrealMaterial->SetMaterialUsage(MATUSAGE_MorphTargets);
 			}
 
 			// Set the dirty flag so this package will get saved later
@@ -1114,7 +1114,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 								//a->ConditionalBeginDestroy();
 								static int ccc = 0;
 								++ccc;
-								a->Rename(*(FString(TEXT("need_reload_tex_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+								a->Rename(*(FString(TEXT("need_reload_tex_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 
 								break;
 							}
@@ -1305,7 +1305,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 					bFind = true;
 					vrmAssetList->MaterialMergeTable[i] = j;
 
-					matArray[i]->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					matArray[i]->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 
 					break;
 				}

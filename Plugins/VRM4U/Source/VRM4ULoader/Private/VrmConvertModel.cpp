@@ -6,6 +6,10 @@
 #include "VrmConvertModel.h"
 #include "VrmConvert.h"
 
+// UE 5.8 使用 VrmConvertModel_Description.cpp 中基于 MeshDescription 的实现。
+// 保留本文件用于 UE 5.7 及更早版本，避免 Unity Build 将两套实现合并后重复定义。
+#if UE_VERSION_OLDER_THAN(5,8,0)
+
 #include "VrmAssetListObject.h"
 #include "VrmMetaObject.h"
 #include "VrmSkeleton.h"
@@ -591,17 +595,6 @@ static void CreateSwingHead(UVrmAssetListObject *vrmAssetList, VRM::VRMSpring &s
 	}
 }
 
-bool VRMConverter::ConvertModel(UVrmAssetListObject* vrmAssetList) {
-
-
-#if	UE_VERSION_OLDER_THAN(5,8,0)
-	return ConvertModel_internal(vrmAssetList);
-#else
-	return ConvertModel_internal_description(vrmAssetList);
-#endif
-
-}
-
 bool VRMConverter::ConvertModel_internal(UVrmAssetListObject *vrmAssetList) {
 
 	if (vrmAssetList == nullptr) {
@@ -724,7 +717,7 @@ bool VRMConverter::ConvertModel_internal(UVrmAssetListObject *vrmAssetList) {
 				++ccc;
 
 				if (Options::Get().IsForceOverride()) {
-					a->Rename(*(FString(TEXT("need_reload_sk_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					a->Rename(*(FString(TEXT("need_reload_sk_VRM"))+FString::FromInt(ccc)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 				} else {
 					bReimportMode = true;
 					// reimport
@@ -810,7 +803,7 @@ bool VRMConverter::ConvertModel_internal(UVrmAssetListObject *vrmAssetList) {
 					if (Options::Get().IsForceOverride()) {
 						a->ClearFlags(EObjectFlags::RF_Standalone);
 						a->SetFlags(EObjectFlags::RF_Public | RF_Transient);
-						a->Rename(*(FString(TEXT("need_reload_k_VRM")) + FString::FromInt(0)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+						a->Rename(*(FString(TEXT("need_reload_k_VRM")) + FString::FromInt(0)), GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 						a->ConditionalBeginDestroy();
 					} else {
 						// reimport
@@ -2427,7 +2420,6 @@ bool VRMConverter::ConvertModel_internal(UVrmAssetListObject *vrmAssetList) {
 #endif
 
 #if	UE_VERSION_OLDER_THAN(5,3,0)
-		Controller.UpdateCurveNamesFromSkeleton(k, ERawCurveTrackTypes::RCT_Float);
 #endif
 
 		//Controller.OpenBracket(LOCTEXT("VRM4U", "Importing BVH"), false);
@@ -2717,6 +2709,17 @@ bool VRMConverter::ConvertModel_internal(UVrmAssetListObject *vrmAssetList) {
 	return true;
 }
 
+#endif // UE_VERSION_OLDER_THAN(5,8,0)
+
+bool VRMConverter::ConvertModel(UVrmAssetListObject* vrmAssetList) {
+
+#if	UE_VERSION_OLDER_THAN(5,8,0)
+	return ConvertModel_internal(vrmAssetList);
+#else
+	return ConvertModel_internal_description(vrmAssetList);
+#endif
+
+}
 
 VrmConvertModel::VrmConvertModel()
 {
