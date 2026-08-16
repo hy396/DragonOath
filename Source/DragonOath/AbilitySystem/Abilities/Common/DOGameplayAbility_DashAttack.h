@@ -38,6 +38,6 @@ protected:
 	void OnMontageCancelled();
 
 	// 冲刺攻击动画蒙太奇
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|DashAttack")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|DashAttack", meta = (DisplayName = "冲刺攻击动画蒙太奇"))
 	TObjectPtr<UAnimMontage> DashAttackMontage;
 };

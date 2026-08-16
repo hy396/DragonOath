@@ -24,6 +24,6 @@ class DRAGONOATH_API UDOProfessionAbilityConfig : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (TitleProperty = "Key", ForceInlineRow, Categories = "Profession"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Meta = (TitleProperty = "Key", ForceInlineRow, Categories = "Profession", DisplayName = "职业技能组映射"))
 	TMap<FGameplayTag, TObjectPtr<UDOAbilitySet>> ProfessionAbilitySets;
 };

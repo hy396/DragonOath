@@ -37,6 +37,6 @@ protected:
 	void OnMontageCancelled();
 
 	// 普攻动画蒙太奇
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|NormalAttack")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|NormalAttack", meta = (DisplayName = "普攻动画蒙太奇"))
 	TObjectPtr<UAnimMontage> AttackMontage;
 };

@@ -53,6 +53,20 @@ EDataValidationResult UDOAbilitySet::IsDataValid(FDataValidationContext& Context
 		}
 	}
 
+	for (int32 Index = 0; Index < GrantedGameplayEffects.Num(); ++Index)
+	{
+		if (!GrantedGameplayEffects[Index].GameplayEffectClass)
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("GrantedGameplayEffects[%d] 缺少 GameplayEffectClass。"), Index)));
+			Result = EDataValidationResult::Invalid;
+		}
+		if (!FMath::IsFinite(GrantedGameplayEffects[Index].Level) || GrantedGameplayEffects[Index].Level <= 0.0f)
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("GrantedGameplayEffects[%d] Level 必须大于 0。"), Index)));
+			Result = EDataValidationResult::Invalid;
+		}
+	}
+
 	return Result;
 }
 

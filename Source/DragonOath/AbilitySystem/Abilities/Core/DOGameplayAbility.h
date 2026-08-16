@@ -4,20 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
-#include "Ability/GA_SharedCoolingBase.h"
+// #include "Ability/GA_SharedCoolingBase.h"
 #include "DOGameplayAbility.generated.h"
 
 UENUM(BlueprintType)
 enum class EDOAbilityActivationPolicy : uint8
 {
 	// 按下输入时触发一次，适合普攻、闪避、瞬发技能。
-	OnInputTriggered,
+	OnInputTriggered UMETA(DisplayName = "输入触发一次"),
 
 	// 按键保持按下时尝试激活，适合格挡、蓄力、引导、持续瞄准。
-	WhileInputActive,
+	WhileInputActive UMETA(DisplayName = "输入保持期间激活"),
 
 	// 技能被授予或 Avatar 切换完成后自动尝试激活。
-	OnSpawn,
+	OnSpawn UMETA(DisplayName = "授予时自动激活"),
 };
 
 /**
@@ -34,7 +34,7 @@ enum class EDOAbilityActivationPolicy : uint8
  * 不需要额外的 DO* 间接层。
  */
 UCLASS(Abstract, Blueprintable)
-class DRAGONOATH_API UDOGameplayAbility : public UGA_SharedCoolingBase
+class DRAGONOATH_API UDOGameplayAbility : public UGameplayAbility // UGA_SharedCoolingBase
 {
 	GENERATED_BODY()
 
@@ -56,6 +56,6 @@ public:
 	float GetAttackSpeed() const;
 
 protected:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="DO|Ability")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="DO|Ability", meta = (DisplayName = "激活策略"))
 	EDOAbilityActivationPolicy ActivationPolicy = EDOAbilityActivationPolicy::OnInputTriggered;
 };

@@ -47,15 +47,15 @@ protected:
 	float GetMaxSpeed() const;
 
 	// 冲刺力度（RootMotion 恒力大小）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺力度"))
 	float DashStrength = 2000.0f;
 
 	// 冲刺持续时间（秒）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺持续时间（秒）"))
 	float DashDuration = 0.3f;
 
 	// 冲刺攻击窗口时长（秒）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺攻击窗口时长（秒）"))
 	float DashAttackWindowDuration = 0.4f;
 
 	// 冲刺期间是否无敌, 默认无敌
@@ -63,15 +63,15 @@ protected:
 	// bool bInvincibleDuringDash = true;
 
 	// 冲刺动画蒙太奇
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺动画蒙太奇"))
 	TObjectPtr<UAnimMontage> DashMontage;
 
 	// 冲刺力度曲线（可选）。X 轴 [0.0, 1.0]，0 是冲刺开始，1 是冲刺结束。
 	// 用于实现前段加速后段减速的手感。
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺力度曲线"))
 	TObjectPtr<UCurveFloat> StrengthOverTimeCurve;
 
 	// 冲刺攻击窗口 GE（授予 Status.DashAttackWindow）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DO|Dash", meta = (DisplayName = "冲刺攻击窗口效果"))
 	TSubclassOf<UGameplayEffect> DashAttackWindowEffectClass;
 };
