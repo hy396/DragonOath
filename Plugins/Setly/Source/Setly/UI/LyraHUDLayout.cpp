@@ -17,6 +17,13 @@ ULyraHUDLayout::ULyraHUDLayout(const FObjectInitializer& ObjectInitializer)
 {
 }
 
+// TODO: 目前我想要鼠标常驻
+TOptional<FUIInputConfig> ULyraHUDLayout::GetDesiredInputConfig() const
+{
+	// HUD 常驻期间保留游戏和 UI 输入，但不捕获鼠标，避免 CommonUI 隐藏光标。
+	return FUIInputConfig(ECommonInputMode::All, EMouseCaptureMode::NoCapture);
+}
+
 void ULyraHUDLayout::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();

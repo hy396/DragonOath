@@ -24,6 +24,8 @@ public:
 
 	ULyraHUDLayout(const FObjectInitializer& ObjectInitializer);
 
+	virtual TOptional<FUIInputConfig> GetDesiredInputConfig() const override;
+
 	void NativeOnInitialized() override;
 
 protected:
