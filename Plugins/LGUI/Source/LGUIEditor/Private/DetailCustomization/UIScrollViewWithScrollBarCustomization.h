@@ -1,0 +1,22 @@
+// Copyright 2019-Present LexLiu. All Rights Reserved.
+
+#include "CoreMinimal.h"
+#include "IDetailCustomization.h"
+#pragma once
+
+/**
+ * 
+ */
+class FUIScrollViewWithScrollBarCustomization : public IDetailCustomization
+{
+public:
+	FUIScrollViewWithScrollBarCustomization();
+	~FUIScrollViewWithScrollBarCustomization();
+
+	static TSharedRef<IDetailCustomization> MakeInstance();
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+private:
+	TWeakObjectPtr<class UUIScrollViewWithScrollbar> TargetScriptPtr;
+	void ForceRefresh(IDetailLayoutBuilder* DetailBuilder);
+};
