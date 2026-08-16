@@ -288,3 +288,24 @@ cython_debug/
 
 # DragonOath local editor settings
 Config/DefaultEditorPerProjectUserSettings.ini
+
+###########################################################
+#              本地构建 / 调试产物（勿提交）             #
+###########################################################
+# UBT / Codex 产生的构建日志与缓存 JSON
+build_*.json
+build_*.log
+build_*.txt
+build_log*.txt
+*.err
+build_phase*.err
+build_phase*.log
+build_ui_compile_latest.txt
+
+# AI 辅助编译缓存目录
+.codex_ubt/
+.uba-codex/
+
+# 插件 UBT 编译缓存
+Plugins/**/Source/**/obj/
+Plugins/UnLua/Source/UnLuaDefaultParamCollectorUbtPlugin/obj/
