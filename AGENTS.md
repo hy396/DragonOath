@@ -211,6 +211,13 @@ BlockAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Move
 7. **GameplayTag 注释用中文**，`UE_DEFINE_GAMEPLAY_TAG_COMMENT` 第三个参数是注释
 8. **代码注释用中文**，文档正文用中文，文档标题用英文编号
 
+### 编辑器配置字段本地化
+
+- 项目源码中所有需要在编辑器、蓝图或 DataAsset/DataTable 中填写的 `UPROPERTY`，包括 `EditAnywhere`、`EditDefaultsOnly` 和 `EditInstanceOnly`，必须在 `meta` 中添加中文 `DisplayName`。
+- 已有 `meta` 时必须合并 `DisplayName`，保留原有的 `ClampMin`、`Categories`、`EditCondition`、`TitleProperty` 等元数据，不要覆盖或删除。
+- 仅运行时字段（例如 `Transient`、非编辑的复制字段、`VisibleAnywhere` 字段以及只用于 Blueprint 数据传递的字段）不属于配置字段，不要求添加 `DisplayName`。
+- 新增或修改配置字段后，应扫描 `Source/DragonOath/`，确认所有可编辑 `UPROPERTY` 都具备中文 `DisplayName`；第三方插件源码不纳入项目字段检查范围。
+
 ## 蓝图待办同步
 
 C++ 侧改动完成后，需要在编辑器里跟进的蓝图/资产配置统一记录在 `Docs/蓝图需要做的事情/` 目录下，按"功能改造_蓝图待办.md"命名。**AGENTS.md 仅保留索引与核心任务镜像，详细步骤以该目录文件为准。**

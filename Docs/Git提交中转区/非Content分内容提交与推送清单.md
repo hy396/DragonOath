@@ -14,7 +14,7 @@
 
 从 PowerShell 执行：
 
-~~~powershell
+```powershell
 Set-Location "D:\ue_texiao\DragonOath"
 
 git status --short
@@ -22,7 +22,7 @@ git branch --show-current
 git remote -v
 git log -1 --oneline
 git diff --cached --name-status
-~~~
+```
 
 预期：
 
@@ -33,12 +33,12 @@ git diff --cached --name-status
 
 每一组正式暂存前都执行一次以下检查，防止把 Content 资产混入：
 
-~~~powershell
+```powershell
 $stagedContent = git diff --cached --name-only | Where-Object { $_ -match "(^|/)Content/" }
 if ($stagedContent) {
     Write-Error "暂存区包含 Content 资产，请先确认并撤回：$($stagedContent -join ', ')"
 }
-~~~
+```
 
 ---
 
@@ -60,7 +60,7 @@ if ($stagedContent) {
 - 服务器权威校验和参数有效性检查；
 - 不修改 Plugins/SharedCoolingAbility，也不提交任何插件 Content 资产。
 
-~~~powershell
+```powershell
 $Group = @(
     "Source/DragonOath/AbilitySystem/BlueprintLibrary/DOAbilitySystemBlueprintLibrary.h",
     "Source/DragonOath/AbilitySystem/BlueprintLibrary/DOAbilitySystemBlueprintLibrary.cpp"
@@ -78,7 +78,7 @@ git commit `
     -m "补充技能冷却时间查询、技能实例查询以及授予/激活/清除辅助接口" `
     -m "统一服务器权威校验，减少对 SharedCoolingAbility 工具函数的依赖"
 git push origin master
-~~~
+```
 
 提交后确认：蓝图函数库能够独立编译；暂存内容只有上述两个文件。
 
@@ -117,7 +117,7 @@ git push origin master
 
 明确不包含：Content/DragonOath/Items/Definitions 下的测试 DataAsset、图标和其他 Content 资产。它们由第 4 组工具生成后，另行进行资产审查和提交。
 
-~~~powershell
+```powershell
 $Group = @(
     "Config/DefaultGame.ini",
     "Source/DragonOath/DragonOath.Build.cs",
@@ -142,7 +142,7 @@ git commit `
     -m "将背包、装备和快捷栏挂载到 PlayerState，并加入 SaveGame 快照、校验与回滚" `
     -m "补充 ItemDefinition AssetManager 扫描配置、GameplayTag 以及物品系统自动化测试"
 git push origin master
-~~~
+```
 
 提交前验证建议：确认 ItemDefinition 扫描路径与实际 Content 路径一致；确认测试源码没有引用临时绝对路径；确认装备属性通过 PlayerState ASC 生效，而不是由 UI 或角色外观直接累加。
 
@@ -174,7 +174,7 @@ git push origin master
 
 UI 约束：背包主体不使用 UMG Designer，不在 Blueprint 中直接扣数量、装备、施加 GE 或处理服务器结果。装备图标只用于 UI，不驱动 Mesh、武器 Actor 或服饰外观。
 
-~~~powershell
+```powershell
 $Group = @(
     "Source/DragonOath/UI/Inventory",
     "Source/DragonOath/Player/DOPlayerCharacter.h",
@@ -196,7 +196,7 @@ git commit `
     -m "接入 PlayerController 的背包快捷键、Menu Layer、快捷栏输入和服务器拾取请求" `
     -m "保持装备属性、库存事务和未来服饰外观系统相互解耦"
 git push origin master
-~~~
+```
 
 提交前验证建议：至少完成一次编辑器编译；确认 UDOInventoryScreen 使用 UI.Layer.Menu；确认快捷栏只在本地玩家创建；确认关闭页面时不会累积失活 CommonUI 页面实例。
 
@@ -218,7 +218,7 @@ git push origin master
 - 为第一版测试资产填入占位图标和类型化效果数据；
 - 只用于编辑器一次性生成，不属于运行时 Lua 或游戏逻辑。
 
-~~~powershell
+```powershell
 $Group = @(
     "Tools/CreateInventoryTestAssets.py"
 )
@@ -235,7 +235,7 @@ git commit `
     -m "自动配置物品基础字段、类型品质、背包 Fragment、装备 Fragment 和消耗品效果" `
     -m "脚本只负责生成 Content 测试资产，不参与运行时逻辑，也不替代资产审查"
 git push origin master
-~~~
+```
 
 执行脚本前要确认 C++ 模块已编译、编辑器 Python 可用、目标目录已经注册为 ItemDefinition Primary Asset。脚本生成的 Content 资产必须另行检查，不要因为脚本提交而自动提交整个 Content/。
 
@@ -266,7 +266,7 @@ git push origin master
 - 外部图片、材质、字体、音效和 RenderTarget 的 Slate 使用方案；
 - 当前非 Content 文件的安全分组、提交和推送规则。
 
-~~~powershell
+```powershell
 $Group = @(
     "AGENTS.md",
     "Docs/01_Development_Standards.md",
@@ -291,7 +291,7 @@ git commit `
     -m "更新纯 Slate 页面结构、外部资产流程、Blueprint 待办和职责边界" `
     -m "记录非 Content 文件的分组提交、资产排除和推送检查规则"
 git push origin master
-~~~
+```
 
 ---
 
@@ -304,7 +304,7 @@ git push origin master
 - Docs/方案/2.5D摄像机方案.md
 - Docs/方案/2.5D纵深移动方案.md
 
-~~~powershell
+```powershell
 $Group = @(
     "Docs/方案/2.5D摄像机方案.md",
     "Docs/方案/2.5D纵深移动方案.md"
@@ -322,7 +322,7 @@ git commit `
     -m "说明角色纵深移动、碰撞约束、输入映射和后续联机扩展方向" `
     -m "将摄像机设计与物品系统、UI 资产和运行时代码分开记录"
 git push origin master
-~~~
+```
 
 ---
 
@@ -359,22 +359,22 @@ git push origin master
 
 检查忽略状态：
 
-~~~powershell
+```powershell
 git status --ignored --short -- build_log.txt build_log2.txt Plugins/UnLua/Source/UnLuaDefaultParamCollectorUbtPlugin/obj
-~~~
+```
 
 ### 7.3 没有实际内容差异的 Target 文件
 
 工作区可能显示 Source/DragonOathEditor.Target.cs 为修改，但当前 git diff 没有实际内容差异，通常是换行或文件时间状态造成的。不要仅凭 git status 就把它加入某个提交：
 
-~~~powershell
+```powershell
 git diff --quiet -- Source/DragonOathEditor.Target.cs
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Source/DragonOathEditor.Target.cs 没有实际内容差异，不暂存。"
 } else {
     git diff -- Source/DragonOathEditor.Target.cs
 }
-~~~
+```
 
 ---
 
@@ -382,12 +382,12 @@ if ($LASTEXITCODE -eq 0) {
 
 每次 git push 后执行：
 
-~~~powershell
+```powershell
 git status --short
 git log --oneline -8
 git log origin/master..HEAD --oneline
 git ls-remote --heads origin master
-~~~
+```
 
 预期：
 
@@ -398,9 +398,9 @@ git ls-remote --heads origin master
 
 如果推送被远端更新拒绝，先审阅远端提交，再执行：
 
-~~~powershell
+```powershell
 git pull --rebase origin master
 git push origin master
-~~~
+```
 
 不要对 master 使用 git push --force 或 git push --force-with-lease。
