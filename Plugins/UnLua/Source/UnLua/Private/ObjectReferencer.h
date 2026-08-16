@@ -49,12 +49,7 @@ namespace UnLua
 
         virtual void AddReferencedObjects(FReferenceCollector& Collector) override
         {
-            // UE 5.8 弃用 AddReferencedObjects(TArray<UObject*>&)，改用逐对象的 AddReferencedObject，
-            // 以兼容增量 GC（TObjectPtr）。
-            for (TObjectPtr<UObject>& Object : ReferencedObjects)
-            {
-                Collector.AddReferencedObject(Object);
-            }
+            Collector.AddReferencedObjects(ReferencedObjects);
         }
 
         virtual FString GetReferencerName() const override
@@ -63,7 +58,7 @@ namespace UnLua
         }
 
     private:
-        TSet<TObjectPtr<UObject>> ReferencedObjects;
+        TSet<UObject*> ReferencedObjects;
         FString Name = TEXT("FObjectReferencer");
     };
 }

@@ -283,7 +283,7 @@ void FUnLuaIntelliSenseGenerator::OnAssetUpdated(const FAssetData& AssetData)
     if (!ShouldExport(AssetData, true))
         return;
 
-    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.GetObjectPathString());
+    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.ObjectPath.ToString());
     if (!Blueprint)
         return;
 

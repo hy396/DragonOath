@@ -51,7 +51,7 @@ public:
 
         FUnLuaEditorCommands::Register();
 
-        FCoreDelegates::GetOnPostEngineInit().AddRaw(this, &FUnLuaEditorModule::OnPostEngineInit);
+        FCoreDelegates::OnPostEngineInit.AddRaw(this, &FUnLuaEditorModule::OnPostEngineInit);
 
         MainMenuToolbar = MakeShareable(new FMainMenuToolbar);
         BlueprintToolbar = MakeShareable(new FBlueprintToolbar);
@@ -72,7 +72,7 @@ public:
     virtual void ShutdownModule() override
     {
         FUnLuaEditorCommands::Unregister();
-        FCoreDelegates::GetOnPostEngineInit().RemoveAll(this);
+        FCoreDelegates::OnPostEngineInit.RemoveAll(this);
         UnregisterSettings();
 
 #if ENGINE_MAJOR_VERSION > 4
@@ -164,7 +164,7 @@ private:
                 return true;
             SuspendedPackages.Add(Package, Class);
             return false;
-        }, EGetObjectsFlags::None);
+        }, false);
 
         for (const auto Pair : SuspendedPackages)
             ULuaFunction::SuspendOverrides(Pair.Value);

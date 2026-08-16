@@ -29,9 +29,7 @@ extern "C" {
 #endif
 #endif
 
-// UE 5.8 在全局命名空间新增了 using TString 别名（ContainersFwd.h），与 Lua 全局
-// "typedef struct TString" 冲突。包含 Lua 内部头期间将其重命名为 lua_TString。
-#define TString lua_TString
+#define TString LuaTString
 #include "lfunc.h"
 #include "lstate.h"
 #include "lobject.h"
@@ -715,7 +713,7 @@ template <typename T, bool WithMetaTableName>
 static void PushPropertyArray(lua_State *L, T *Property, void *Value, void(*PushFunc)(lua_State*, T*, void*), const char *MetatableName = nullptr)
 {
 #if !UE_BUILD_SHIPPING
-    if (!Property || !Value || Property->ArrayDim < 2 || Property->GetElementSize() < 1)
+    if (!Property || !Value || Property->ArrayDim < 2 || Property->ElementSize < 1)
     {
         UNLUA_LOGERROR(L, LogUnLua, Warning, TEXT("%s, Invalid parameters!"), ANSI_TO_TCHAR(__FUNCTION__));
         return;
@@ -743,7 +741,7 @@ static void PushPropertyArray(lua_State *L, T *Property, void *Value, void(*Push
         {
             lua_pushinteger(L, i + 1);
             PushFunc(L, Property, ElementPtr);
-            ElementPtr += Property->GetElementSize();
+            ElementPtr += Property->ElementSize;
             TPropertyArrayPushPolicy<T, WithMetaTableName>::PostPushSingleElement(L);
         }
         TPropertyArrayPushPolicy<T, WithMetaTableName>::PostPushArray(L);

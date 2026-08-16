@@ -1,6 +1,6 @@
 // Tencent is pleased to support the open source community by making UnLua available.
 // 
-// Copyright (C) 2019 Tencent. All rights reserved.
+// Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
 // Licensed under the MIT License (the "License"); 
 // you may not use this file except in compliance with the License. You may obtain a copy of the License at
@@ -31,9 +31,7 @@ public class Lua : ModuleRules
     public Lua(ReadOnlyTargetRules Target) : base(Target)
     {
         Type = ModuleType.External;
-        // UE 5.5+：bEnableUndefinedIdentifierWarnings 已废弃；UE 5.6+ 该属性迁移至 CppCompileWarningSettings
         CppCompileWarningSettings.UndefinedIdentifierWarningLevel = WarningLevel.Off;
-        // UE 5.6+：ShadowVariableWarningLevel 已迁移至 CppCompileWarningSettings
         CppCompileWarningSettings.ShadowVariableWarningLevel = WarningLevel.Off;
 
         m_LuaVersion = GetLuaVersion();
@@ -372,6 +370,10 @@ public class Lua : ModuleRules
 
     private bool ShouldCompileAsCpp()
     {
+#if UE_5_7_OR_LATER
+        // UE5.7 introduces a global TString alias that conflicts with Lua internals when compiled as C++.
+        return false;
+#else
         var projectDir = Target.ProjectFile.Directory;
         var configFilePath = projectDir + "/Config/DefaultUnLuaEditor.ini";
         var configFileReference = new FileReference(configFilePath);
@@ -384,6 +386,7 @@ public class Lua : ModuleRules
         if (config.GetBool(section, "bLuaCompileAsCpp", out flag))
             return flag;
         return false;
+#endif
     }
 
     private string GetLuaVersion()
@@ -444,9 +447,11 @@ public class Lua : ModuleRules
                 return "Ninja";
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
             {
-                // UE 5.8 已移除 VisualStudio2019 枚举值，仅保留 VisualStudio2022 / VisualStudio2026
+                // VisualStudio2019 removed in UE5.5+; skip VS2019 check
+#if UE_4_27_OR_LATER
                 if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2022)
                     return "Visual Studio 17 2022";
+#endif
             }
         }
 

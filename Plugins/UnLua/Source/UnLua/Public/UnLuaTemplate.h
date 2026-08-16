@@ -20,6 +20,23 @@
 
 namespace UnLua
 {
+    /**
+     * Compatibility helpers for UE versions where older template traits were removed.
+     */
+    template <bool Predicate, typename TrueType, typename FalseType>
+    struct TChooseClass
+    {
+        using Result = TrueType;
+    };
+
+    template <typename TrueType, typename FalseType>
+    struct TChooseClass<false, TrueType, FalseType>
+    {
+        using Result = FalseType;
+    };
+
+    template <class T> struct TIsTriviallyDestructible { enum { Value = std::is_trivially_destructible<T>::value }; };
+    template <class T> struct TIsTriviallyCopyConstructible { enum { Value = std::is_trivially_copy_constructible<T>::value }; };
 
     /**
      * Traits class which tests if a type is constructible
@@ -91,7 +108,7 @@ namespace UnLua
     template <typename T> struct TArgTypeTraits
     {
         typedef typename TDecay<T>::Type RT;
-        typedef std::conditional_t<TIsPrimitiveTypeOrPointer<RT>::Value, RT, std::remove_cv_t<T>> Type;
+        typedef typename TChooseClass<TIsPrimitiveTypeOrPointer<RT>::Value, RT, typename std::remove_cv<T>::type>::Result Type;
     };
     
     
@@ -332,7 +349,6 @@ DEFINE_TYPE(uint16)
 DEFINE_TYPE(uint32)
 DEFINE_TYPE(uint64)
 DEFINE_NAMED_TYPE("ulong", unsigned long)
-DEFINE_TYPE(ELoadFlags)
 DEFINE_TYPE(float)
 DEFINE_TYPE(double)
 DEFINE_TYPE(bool)

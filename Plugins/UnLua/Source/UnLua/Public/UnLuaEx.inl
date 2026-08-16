@@ -94,7 +94,7 @@ namespace UnLua
     {
         static void Generate(FString &Buffer, int32 Index)
         {
-            FString TypeName = TTypeIntelliSense<std::conditional_t<TIsPointer<T1>::Value, typename TDecay<typename TRemovePointer<T1>::Type>::Type*, typename TDecay<T1>::Type>>::GetName();
+            FString TypeName = TTypeIntelliSense<typename TChooseClass<TIsPointer<T1>::Value, typename TDecay<typename TRemovePointer<T1>::Type>::Type*, typename TDecay<T1>::Type>::Result>::GetName();
             Buffer += FString::Printf(TEXT("---@param P%d %s %s\r\n"), Index, *TypeName, *TArgumentComment<T1>::Get());
             TArgumentIntelliSense<T2...>::Generate(Buffer, Index + 1);
         }
@@ -123,7 +123,7 @@ namespace UnLua
         }
 
         // return 
-        FString ReturnTypeName = TTypeIntelliSense<std::conditional_t<TIsPointer<RetType>::Value, typename TDecay<typename TRemovePointer<RetType>::Type>::Type*, typename TDecay<RetType>::Type>>::GetName();
+        FString ReturnTypeName = TTypeIntelliSense<typename TChooseClass<TIsPointer<RetType>::Value, typename TDecay<typename TRemovePointer<RetType>::Type>::Type*, typename TDecay<RetType>::Type>::Result>::GetName();
         if (ReturnTypeName.Len() > 0)
         {
             Buffer += FString::Printf(TEXT("---@return %s\r\n"), *ReturnTypeName);
@@ -880,7 +880,7 @@ namespace UnLua
     template <bool bIsReflected>
     void TExportedClassBase<bIsReflected>::GenerateIntelliSense(FString &Buffer) const
     {
-        GenerateIntelliSenseInternal(Buffer, std::conditional_t<bIsReflected, FTrue, FFalse>());
+        GenerateIntelliSenseInternal(Buffer, typename TChooseClass<bIsReflected, FTrue, FFalse>::Result());
     }
 
     template <bool bIsReflected>
@@ -951,7 +951,7 @@ namespace UnLua
     TExportedClass<bIsReflected, ClassType, CtorArgType...>::TExportedClass(const char *InName, const char *InSuperClassName)
         : FExportedClassBase(InName, InSuperClassName)
     {
-        AddDefaultFunctions(std::conditional_t<bIsReflected, FTrue, FFalse>());
+        AddDefaultFunctions(typename TChooseClass<bIsReflected, FTrue, FFalse>::Result());
     }
 
     template <bool bIsReflected, typename ClassType, typename... CtorArgType>
@@ -1029,14 +1029,14 @@ namespace UnLua
     template <bool bIsReflected, typename ClassType, typename... CtorArgType>
     void TExportedClass<bIsReflected, ClassType, CtorArgType...>::AddDefaultFunctions(FFalse NotReflected)
     {
-        AddConstructor(std::conditional_t<TIsConstructible<ClassType, CtorArgType...>::Value, FTrue, FFalse>());
-        AddDestructor(std::conditional_t<(std::is_destructible<ClassType>::value && !std::is_trivially_destructible<ClassType>::value), FFalse, FTrue>());
+        AddConstructor(typename TChooseClass<TIsConstructible<ClassType, CtorArgType...>::Value, FTrue, FFalse>::Result());
+        AddDestructor(typename TChooseClass<TAnd<TIsDestructible<ClassType>, TNot<TIsTriviallyDestructible<ClassType>>>::Value, FFalse, FTrue>::Result());
     }
 
     template <bool bIsReflected, typename ClassType, typename... CtorArgType>
     void TExportedClass<bIsReflected, ClassType, CtorArgType...>::AddDefaultFunctions(FTrue Reflected)
     {
-        AddDefaultFunctions_Reflected(std::conditional_t<TPointerIsConvertibleFromTo<ClassType, UObject>::Value, FTrue, FFalse>());
+        AddDefaultFunctions_Reflected(typename TChooseClass<TPointerIsConvertibleFromTo<ClassType, UObject>::Value, FTrue, FFalse>::Result());
     }
 
     template <bool bIsReflected, typename ClassType, typename... CtorArgType>
@@ -1045,7 +1045,7 @@ namespace UnLua
         int32 NumArgs = sizeof...(CtorArgType);
         if (NumArgs > 0)
         {
-            AddConstructor(std::conditional_t<TIsConstructible<ClassType, CtorArgType...>::Value, FTrue, FFalse>());
+            AddConstructor(typename TChooseClass<TIsConstructible<ClassType, CtorArgType...>::Value, FTrue, FFalse>::Result());
         }
     }
 
